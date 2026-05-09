@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Azure Functions
+local.settings.json
+.python_packages/
+.funcignore
+
+# Environment
+.env
+*.env
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,39 @@
+{
+  "name": "Check Fraud Agent",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "18"
+    }
+  },
+  "postCreateCommand": "pip install -r requirements.txt && npm install -g azure-functions-core-tools@4 --unsafe-perm true",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-azurefunctions",
+        "ms-python.python",
+        "ms-python.pylint",
+        "ms-azuretools.vscode-azureresourcegroups",
+        "ms-vscode.azure-account",
+        "ms-python.debugpy"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "azureFunctions.deploySubpath": ".",
+        "azureFunctions.scmDoBuildDuringDeployment": true,
+        "azureFunctions.pythonVenv": ".venv",
+        "azureFunctions.projectLanguage": "Python",
+        "azureFunctions.projectRuntime": "~4",
+        "azureFunctions.projectSubpath": "function_app"
+      }
+    }
+  },
+  "forwardPorts": [7071],
+  "portsAttributes": {
+    "7071": {
+      "label": "Azure Functions local runtime",
+      "onAutoForward": "notify"
+    }
+  }
+}
