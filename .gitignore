@@ -12,7 +12,7 @@ build/
 # Azure Functions
 local.settings.json
 .python_packages/
-.funcignore
+deploy.zip
 
 # Environment
 .env
