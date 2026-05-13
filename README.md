@@ -81,10 +81,20 @@ python scripts/seed_cosmos.py
 
 ---
 
+## Deployed URL
+
+| Resource | URL |
+|---|---|
+| Function App | `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net` |
+| Analyst Dashboard | `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net/api/dashboard` |
+
+> Note: This is a Flex Consumption plan — the URL is **not** `checkfraudagent.azurewebsites.net`.
+
 ## API endpoints
 
 | Method | Route | Description |
 |---|---|---|
+| GET | `/api/dashboard` | Tier 3 analyst review UI |
 | POST | `/api/checks/{id}/decision` | Analyst submits approve/reject |
 | GET | `/api/checks/{id}/status` | Get orchestration status |
 | GET | `/api/checks/queue` | Get analyst review queue |
