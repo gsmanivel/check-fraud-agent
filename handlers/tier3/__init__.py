@@ -70,7 +70,7 @@ def record_analyst_decision(activityInput: dict):
     return {"status": "recorded", "check_id": check_id}
 
 
-@bp.route(route="checks/{check_id}/decision", methods=["POST"])
+@bp.route(route="checks/{check_id}/decision", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
 @bp.durable_client_input(client_name="client")
 async def analyst_decision_endpoint(req: func.HttpRequest, client) -> func.HttpResponse:
     check_id = req.route_params.get("check_id")
@@ -87,7 +87,7 @@ async def analyst_decision_endpoint(req: func.HttpRequest, client) -> func.HttpR
     )
 
 
-@bp.route(route="checks/{check_id}/status", methods=["GET"])
+@bp.route(route="checks/{check_id}/status", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 @bp.durable_client_input(client_name="client")
 async def get_check_status(req: func.HttpRequest, client) -> func.HttpResponse:
     check_id = req.route_params.get("check_id")
@@ -100,7 +100,7 @@ async def get_check_status(req: func.HttpRequest, client) -> func.HttpResponse:
     )
 
 
-@bp.route(route="checks/queue", methods=["GET"])
+@bp.route(route="checks/queue", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 async def get_analyst_queue(req: func.HttpRequest) -> func.HttpResponse:
     container = get_cosmos_container(os.environ["COSMOS_CHECKS_CONTAINER"])
     query = "SELECT * FROM c WHERE c.status='awaiting_analyst' ORDER BY c.tier3_assigned_at ASC"
