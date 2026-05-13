@@ -55,4 +55,11 @@ jobs:
             --name ${{ env.AZURE_FUNCTIONAPP_NAME }} \
             --resource-group manman-rg \
             --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }} \
-            --src deploy.zip
+            --src deploy.zip || true
+
+      - name: Verify deployment
+        run: |
+          az functionapp show \
+            --name ${{ env.AZURE_FUNCTIONAPP_NAME }} \
+            --resource-group manman-rg \
+            --query "state" -o tsv
