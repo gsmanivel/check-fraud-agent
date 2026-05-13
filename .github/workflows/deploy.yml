@@ -47,7 +47,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Create deployment package
-        run: zip -r deploy.zip host.json requirements.txt function_app.py handlers/
+        run: zip -r deploy.zip host.json requirements.txt function_app.py handlers/ dashboard.html
 
       - name: Deploy to Azure Functions
         run: |
