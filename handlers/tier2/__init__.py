@@ -53,6 +53,8 @@ def tier2_agent(msg: func.ServiceBusMessage):
             "fraud_pattern":    result.get("fraud_pattern"),
             "fraud_indicators": result.get("fraud_indicators", []),
             "agent_reasoning":  result.get("reasoning", ""),
+            "agent_tool_calls": result.get("tool_calls_made", []),
+            "agent_iterations": result.get("iterations", 0),
             "processing_tier":  "tier2",
             "status":           result["decision"] if result["decision"] != "escalate" else "escalated_tier3"
         })

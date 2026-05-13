@@ -103,14 +103,18 @@ async def get_check_status(req: func.HttpRequest, client) -> func.HttpResponse:
 @bp.route(route="checks/queue", methods=["GET"])
 async def get_analyst_queue(req: func.HttpRequest) -> func.HttpResponse:
     container = get_cosmos_container(os.environ["COSMOS_CHECKS_CONTAINER"])
-    query = (
-        "SELECT c.id, c.check_number, c.amount, c.payee_name, c.account_number, "
-        "c.risk_score, c.fraud_pattern, c.fraud_indicators, c.agent_reasoning, "
-        "c.check_image_url, c.tier3_assigned_at "
-        "FROM c WHERE c.status='awaiting_analyst' ORDER BY c.tier3_assigned_at ASC"
-    )
+    query = "SELECT * FROM c WHERE c.status='awaiting_analyst' ORDER BY c.tier3_assigned_at ASC"
     items = list(container.query_items(query=query, enable_cross_partition_query=True))
     return func.HttpResponse(
         json.dumps({"queue": items, "count": len(items)}),
         status_code=200, mimetype="application/json"
     )
+
+
+@bp.route(route="dashboard", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
+async def serve_dashboard(req: func.HttpRequest) -> func.HttpResponse:
+    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    html_path = os.path.join(here, "dashboard.html")
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    return func.HttpResponse(html, status_code=200, mimetype="text/html")

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Check Fraud Analyst Dashboard</title>
+<title>Tier 3 Analyst Review</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,109 +26,64 @@
     gap: 12px;
     flex-shrink: 0;
   }
-
   header .logo {
-    width: 32px;
-    height: 32px;
+    width: 32px; height: 32px;
     background: #ef4444;
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     font-size: 18px;
   }
-
   header h1 { font-size: 18px; font-weight: 600; color: #f1f5f9; }
   header .subtitle { font-size: 12px; color: #64748b; margin-top: 1px; }
-
   header .queue-badge {
     margin-left: auto;
-    background: #ef4444;
-    color: white;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 20px;
-    min-width: 24px;
-    text-align: center;
+    background: #ef4444; color: white;
+    font-size: 12px; font-weight: 700;
+    padding: 3px 10px; border-radius: 20px;
+    min-width: 24px; text-align: center;
   }
-
   header .refresh-btn {
-    background: #334155;
-    border: none;
-    color: #94a3b8;
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.15s;
+    background: #334155; border: none; color: #94a3b8;
+    padding: 6px 12px; border-radius: 6px; font-size: 13px;
+    cursor: pointer; transition: background 0.15s;
   }
   header .refresh-btn:hover { background: #475569; color: #e2e8f0; }
 
-  .layout {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-  }
+  .layout { display: flex; flex: 1; overflow: hidden; }
 
-  /* ── Queue panel ── */
+  /* Queue panel */
   .queue-panel {
-    width: 400px;
-    flex-shrink: 0;
+    width: 380px; flex-shrink: 0;
     border-right: 1px solid #1e293b;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    display: flex; flex-direction: column; overflow: hidden;
   }
-
   .panel-header {
-    padding: 14px 16px;
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #64748b;
+    padding: 12px 16px;
+    background: #1e293b; border-bottom: 1px solid #334155;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; color: #64748b;
   }
-
-  .queue-list {
-    overflow-y: auto;
-    flex: 1;
-  }
-
+  .queue-list { overflow-y: auto; flex: 1; }
   .queue-item {
-    padding: 14px 16px;
-    border-bottom: 1px solid #1e293b;
-    cursor: pointer;
-    transition: background 0.12s;
-    position: relative;
+    padding: 14px 16px; border-bottom: 1px solid #1e293b;
+    cursor: pointer; transition: background 0.12s;
   }
-  .queue-item:hover { background: #1e293b; }
-  .queue-item.active { background: #1e3a5f; border-left: 3px solid #3b82f6; }
-
+  .queue-item:hover { background: #1a2540; }
+  .queue-item.active { background: #1e3a5f; border-left: 3px solid #3b82f6; padding-left: 13px; }
   .queue-item .row1 {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 3px;
   }
-  .queue-item .check-num { font-weight: 600; font-size: 14px; color: #f1f5f9; }
-  .queue-item .amount {
-    font-weight: 700;
-    font-size: 14px;
-    color: #fbbf24;
-  }
+  .queue-item .check-id { font-weight: 600; font-size: 14px; color: #f1f5f9; }
+  .queue-item .amount { font-weight: 700; font-size: 14px; color: #fbbf24; }
   .queue-item .payee { font-size: 12px; color: #94a3b8; margin-bottom: 6px; }
-  .queue-item .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .queue-item .row3 { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .queue-item .wait { font-size: 10px; color: #475569; margin-left: auto; }
 
   .tag {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 7px;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-size: 10px; font-weight: 600;
+    padding: 2px 7px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.04em;
   }
   .tag-structuring    { background: #7c3aed22; color: #a78bfa; border: 1px solid #7c3aed44; }
   .tag-altered        { background: #dc262622; color: #f87171; border: 1px solid #dc262644; }
@@ -136,228 +91,197 @@
   .tag-unknown        { background: #33415522; color: #94a3b8; border: 1px solid #33415544; }
 
   .risk-pill {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 20px;
+    font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 20px;
   }
   .risk-high   { background: #dc262630; color: #f87171; }
   .risk-medium { background: #d9770630; color: #fb923c; }
   .risk-low    { background: #16a34a30; color: #4ade80; }
 
   .queue-empty {
-    padding: 40px 20px;
-    text-align: center;
-    color: #475569;
-    font-size: 14px;
+    padding: 48px 20px; text-align: center; color: #475569; font-size: 14px;
   }
   .queue-empty .icon { font-size: 40px; margin-bottom: 12px; }
 
-  /* ── Detail panel ── */
-  .detail-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
+  /* Detail panel */
+  .detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   .detail-placeholder {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #334155;
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: #334155;
   }
   .detail-placeholder .icon { font-size: 56px; margin-bottom: 16px; }
   .detail-placeholder p { font-size: 15px; }
 
-  .detail-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
+  .detail-scroll { flex: 1; overflow-y: auto; }
+
+  /* Sticky decision bar */
+  .decision-bar {
+    background: #1e293b;
+    border-top: 1px solid #334155;
+    padding: 14px 24px;
     display: none;
-  }
-
-  .detail-content.visible { display: block; }
-
-  .detail-title {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-bottom: 24px;
-    gap: 16px;
-  }
-
-  .detail-title h2 { font-size: 20px; font-weight: 700; color: #f1f5f9; }
-  .detail-title .meta { font-size: 12px; color: #64748b; margin-top: 4px; }
-
-  .action-buttons {
-    display: flex;
-    gap: 10px;
+    gap: 12px;
+    align-items: center;
     flex-shrink: 0;
   }
+  .decision-bar.visible { display: flex; }
+  .decision-bar label { font-size: 12px; color: #64748b; margin-right: 4px; }
+  .decision-bar input[type="text"] {
+    flex: 1; background: #0f172a; border: 1px solid #334155;
+    color: #e2e8f0; padding: 8px 12px; border-radius: 6px;
+    font-size: 13px; outline: none;
+  }
+  .decision-bar input[type="text"]:focus { border-color: #3b82f6; }
+  .decision-bar input[type="text"]::placeholder { color: #475569; }
 
   .btn {
-    padding: 10px 24px;
-    border: none;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.15s, transform 0.1s;
+    padding: 10px 22px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s; white-space: nowrap;
   }
   .btn:hover { opacity: 0.88; transform: translateY(-1px); }
   .btn:active { transform: translateY(0); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-
   .btn-approve { background: #16a34a; color: white; }
   .btn-reject  { background: #dc2626; color: white; }
 
-  .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    margin-bottom: 20px;
+  /* Content sections */
+  .detail-inner { padding: 24px; }
+
+  .detail-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    margin-bottom: 20px; gap: 16px;
   }
+  .detail-header h2 { font-size: 20px; font-weight: 700; color: #f1f5f9; }
+  .detail-header .meta { font-size: 12px; color: #64748b; margin-top: 4px; line-height: 1.6; }
 
-  .card {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 10px;
-    padding: 16px;
-  }
-
-  .card-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #64748b;
-    margin-bottom: 6px;
-  }
-
-  .card-value {
-    font-size: 22px;
-    font-weight: 700;
-    color: #f1f5f9;
-  }
-
-  .card-value.amount-val { color: #fbbf24; }
-  .card-value.risk-val-high   { color: #f87171; }
-  .card-value.risk-val-medium { color: #fb923c; }
-  .card-value.risk-val-low    { color: #4ade80; }
-
-  .card-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
-
-  .section {
-    background: #1e293b;
-    border: 1px solid #334155;
+  /* Escalation summary banner */
+  .escalation-banner {
+    background: #1a1a2e;
+    border: 1px solid #dc262640;
     border-radius: 10px;
     padding: 16px 20px;
     margin-bottom: 16px;
+    display: flex; gap: 0; overflow: hidden;
   }
+  .esc-step {
+    flex: 1; text-align: center; padding: 8px 12px;
+    position: relative;
+  }
+  .esc-step + .esc-step::before {
+    content: '→';
+    position: absolute; left: -8px; top: 50%; transform: translateY(-50%);
+    color: #334155; font-size: 18px;
+  }
+  .esc-step .step-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: #64748b; margin-bottom: 6px;
+  }
+  .esc-step .step-score {
+    font-size: 28px; font-weight: 800;
+  }
+  .esc-step .step-reason {
+    font-size: 10px; color: #64748b; margin-top: 4px; line-height: 1.4;
+  }
+  .score-red    { color: #f87171; }
+  .score-orange { color: #fb923c; }
+  .score-blue   { color: #60a5fa; }
 
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 16px;
+  }
+  .card {
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .card-label {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: #64748b; margin-bottom: 5px;
+  }
+  .card-value { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+  .card-value.amount-val { color: #fbbf24; font-size: 22px; }
+  .card-sub { font-size: 11px; color: #64748b; margin-top: 3px; }
+
+  .section {
+    background: #1e293b; border: 1px solid #334155;
+    border-radius: 10px; padding: 16px 20px; margin-bottom: 14px;
+  }
   .section-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #64748b;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: #64748b;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
   }
 
-  .indicators-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+  .info-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
   }
+  .info-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; border-bottom: 1px solid #33415530; font-size: 13px;
+    grid-column: span 1;
+  }
+  .info-row.full { grid-column: span 2; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: #64748b; flex-shrink: 0; margin-right: 12px; }
+  .info-value { color: #e2e8f0; font-weight: 500; text-align: right; word-break: break-all; }
 
+  .indicators-list { display: flex; flex-wrap: wrap; gap: 8px; }
   .indicator-chip {
-    font-size: 11px;
-    padding: 4px 10px;
-    background: #dc262618;
-    color: #f87171;
-    border: 1px solid #dc262640;
-    border-radius: 6px;
-    font-family: monospace;
+    font-size: 11px; padding: 4px 10px;
+    background: #dc262618; color: #f87171;
+    border: 1px solid #dc262640; border-radius: 6px; font-family: monospace;
+  }
+  .indicator-chip.tier1 {
+    background: #d9770618; color: #fb923c; border-color: #d9770640;
   }
 
   .reasoning-text {
-    font-size: 13px;
-    line-height: 1.7;
-    color: #cbd5e1;
-    white-space: pre-wrap;
-    word-break: break-word;
+    font-size: 13px; line-height: 1.8; color: #cbd5e1;
+    white-space: pre-wrap; word-break: break-word;
   }
 
-  .trace-container {
-    max-height: 320px;
-    overflow-y: auto;
-  }
-
+  /* Tool trace */
   .trace-step {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 12px;
+    display: flex; gap: 12px; margin-bottom: 10px; align-items: flex-start;
   }
-
   .trace-step:last-child { margin-bottom: 0; }
-
   .trace-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: #334155;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    flex-shrink: 0;
-    margin-top: 2px;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #334155; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; flex-shrink: 0;
   }
-
   .trace-body { flex: 1; }
   .trace-tool { font-size: 12px; font-weight: 600; color: #93c5fd; font-family: monospace; }
-  .trace-args { font-size: 11px; color: #64748b; margin-top: 2px; font-family: monospace; word-break: break-all; }
+  .trace-args { font-size: 11px; color: #64748b; margin-top: 3px; font-family: monospace; word-break: break-all; }
 
-  .info-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #33415540;
-    font-size: 13px;
+  /* Check image */
+  .check-image-wrap {
+    border-radius: 8px; overflow: hidden;
+    border: 1px solid #334155; background: #0f172a;
+    text-align: center; min-height: 120px;
+    display: flex; align-items: center; justify-content: center;
   }
-  .info-row:last-child { border-bottom: none; }
-  .info-label { color: #64748b; }
-  .info-value { color: #e2e8f0; font-weight: 500; text-align: right; max-width: 60%; word-break: break-word; }
+  .check-image-wrap img {
+    max-width: 100%; max-height: 280px; object-fit: contain; display: block;
+  }
+  .img-unavailable { color: #475569; font-size: 13px; }
 
-  /* toast */
+  /* Toast */
   .toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    padding: 12px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: white;
-    z-index: 1000;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 0.2s, transform 0.2s;
-    pointer-events: none;
+    position: fixed; bottom: 24px; right: 24px;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: 14px; font-weight: 500; color: white;
+    z-index: 1000; opacity: 0; transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s; pointer-events: none;
   }
   .toast.show { opacity: 1; transform: translateY(0); }
   .toast.success { background: #16a34a; }
   .toast.error   { background: #dc2626; }
   .toast.info    { background: #2563eb; }
 
-  /* scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 </style>
@@ -367,32 +291,38 @@
 <header>
   <div class="logo">&#128270;</div>
   <div>
-    <h1>Check Fraud Review</h1>
-    <div class="subtitle">Analyst Decision Queue</div>
+    <h1>Tier 3 Analyst Review</h1>
+    <div class="subtitle">Checks escalated for human decision</div>
   </div>
   <span class="queue-badge" id="queueCount">0</span>
   <button class="refresh-btn" onclick="loadQueue()">&#8635; Refresh</button>
 </header>
 
 <div class="layout">
-  <!-- Queue List -->
   <div class="queue-panel">
     <div class="panel-header">Pending Review</div>
     <div class="queue-list" id="queueList">
       <div class="queue-empty">
         <div class="icon">&#9203;</div>
-        <p>Loading queue&hellip;</p>
+        <p>Loading&hellip;</p>
       </div>
     </div>
   </div>
 
-  <!-- Detail Panel -->
   <div class="detail-panel">
     <div class="detail-placeholder" id="detailPlaceholder">
       <div class="icon">&#128196;</div>
       <p>Select a check to review</p>
     </div>
-    <div class="detail-content" id="detailContent"></div>
+    <div class="detail-scroll" id="detailScroll" style="display:none;">
+      <div class="detail-inner" id="detailInner"></div>
+    </div>
+    <div class="decision-bar" id="decisionBar">
+      <label>Notes:</label>
+      <input type="text" id="analystNotes" placeholder="Optional notes for this decision…" />
+      <button class="btn btn-approve" id="btnApprove" onclick="submitDecision('approve')">&#10003; Approve</button>
+      <button class="btn btn-reject"  id="btnReject"  onclick="submitDecision('reject')">&#10007; Reject</button>
+    </div>
   </div>
 </div>
 
@@ -403,7 +333,7 @@
   let currentCheck = null;
   let queueData = [];
 
-  // ── API helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   async function apiGet(path) {
     const res = await fetch(`${API_BASE}/api${path}`);
@@ -417,38 +347,30 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `HTTP ${res.status}`);
-    }
+    if (!res.ok) { const t = await res.text(); throw new Error(t || `HTTP ${res.status}`); }
     return res.json();
   }
 
-  // ── Toast ────────────────────────────────────────────────────────────────────
+  function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
 
   function showToast(msg, type = 'info') {
     const el = document.getElementById('toast');
     el.textContent = msg;
     el.className = `toast ${type} show`;
-    setTimeout(() => { el.classList.remove('show'); }, 3500);
+    setTimeout(() => el.classList.remove('show'), 3500);
   }
 
-  // ── Queue loading ────────────────────────────────────────────────────────────
-
-  async function loadQueue() {
-    try {
-      const data = await apiGet('/checks/queue');
-      queueData = data.queue || [];
-      renderQueue();
-      document.getElementById('queueCount').textContent = queueData.length;
-    } catch (e) {
-      showToast('Failed to load queue: ' + e.message, 'error');
-      document.getElementById('queueList').innerHTML = `
-        <div class="queue-empty">
-          <div class="icon">&#9888;</div>
-          <p>Could not reach API</p>
-        </div>`;
-    }
+  function timeAgo(iso) {
+    if (!iso) return '—';
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
   }
 
   function patternTag(pattern) {
@@ -469,180 +391,233 @@
     return `<span class="risk-pill ${cls}">Risk ${score}</span>`;
   }
 
+  function toolIcon(name) {
+    return { customer_lookup:'&#128100;', velocity_check:'&#128200;', signature_check:'&#9998;',
+             fraud_pattern_search:'&#128269;', payee_verify:'&#128373;', escalate_to_human:'&#128226;' }[name] || '&#128295;';
+  }
+
+  // ── Queue ─────────────────────────────────────────────────────────────────────
+
+  async function loadQueue() {
+    try {
+      const data = await apiGet('/checks/queue');
+      queueData = data.queue || [];
+      renderQueue();
+      document.getElementById('queueCount').textContent = queueData.length;
+    } catch (e) {
+      showToast('Failed to load queue: ' + e.message, 'error');
+      document.getElementById('queueList').innerHTML =
+        '<div class="queue-empty"><div class="icon">&#9888;</div><p>Could not reach API</p></div>';
+    }
+  }
+
   function renderQueue() {
     const el = document.getElementById('queueList');
     if (!queueData.length) {
-      el.innerHTML = `<div class="queue-empty"><div class="icon">&#10003;</div><p>No checks pending review</p></div>`;
+      el.innerHTML = '<div class="queue-empty"><div class="icon">&#10003;</div><p>No checks pending review</p></div>';
       return;
     }
     el.innerHTML = queueData.map((c, i) => `
-      <div class="queue-item ${currentCheck && currentCheck.id === c.id ? 'active' : ''}"
-           onclick="selectCheck(${i})">
+      <div class="queue-item ${currentCheck && currentCheck.id === c.id ? 'active' : ''}" onclick="selectCheck(${i})">
         <div class="row1">
-          <span class="check-num">#${c.check_number || c.id.slice(0, 8)}</span>
-          <span class="amount">$${(c.amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+          <span class="check-id">#${esc(c.check_number || c.id.slice(0,8))}</span>
+          <span class="amount">$${(c.amount||0).toLocaleString('en-US',{minimumFractionDigits:2})}</span>
         </div>
-        <div class="payee">${escHtml(c.payee_name || '—')}</div>
-        <div class="tags">
+        <div class="payee">${esc(c.payee_name||'—')} &bull; ${esc(c.bank_name||'—')}</div>
+        <div class="row3">
           ${patternTag(c.fraud_pattern)}
           ${riskPill(c.risk_score)}
+          <span class="wait">${timeAgo(c.tier3_assigned_at)}</span>
         </div>
       </div>`).join('');
   }
 
-  // ── Detail rendering ─────────────────────────────────────────────────────────
+  // ── Detail ────────────────────────────────────────────────────────────────────
 
   function selectCheck(idx) {
     currentCheck = queueData[idx];
-    renderQueue(); // re-render to update active state
+    renderQueue();
     renderDetail(currentCheck);
-  }
-
-  function riskClass(score) {
-    if (score >= 75) return 'risk-val-high';
-    if (score >= 40) return 'risk-val-medium';
-    return 'risk-val-low';
-  }
-
-  function escHtml(str) {
-    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  function toolIcon(name) {
-    const icons = {
-      customer_lookup:      '&#128100;',
-      velocity_check:       '&#128200;',
-      signature_check:      '&#9998;',
-      fraud_pattern_search: '&#128269;',
-      payee_verify:         '&#128373;',
-      escalate_to_human:    '&#128226;',
-    };
-    return icons[name] || '&#128295;';
   }
 
   function renderDetail(c) {
     document.getElementById('detailPlaceholder').style.display = 'none';
-    const panel = document.getElementById('detailContent');
-    panel.classList.add('visible');
+    document.getElementById('detailScroll').style.display = 'block';
+    document.getElementById('decisionBar').classList.add('visible');
+    document.getElementById('analystNotes').value = '';
+    document.getElementById('btnApprove').disabled = false;
+    document.getElementById('btnReject').disabled  = false;
 
-    const indicators = (c.fraud_indicators || []);
-    const reasoning  = c.agent_reasoning || '';
-    let traceCalls   = [];
+    const t1Score = c.tier1_risk_score ?? '—';
+    const t2Score = c.risk_score ?? '—';
+    const t1scoreClass = t1Score >= 75 ? 'score-red' : t1Score >= 40 ? 'score-orange' : 'score-blue';
+    const t2scoreClass = t2Score >= 75 ? 'score-red' : t2Score >= 40 ? 'score-orange' : 'score-blue';
 
-    // agent_reasoning may embed the full result JSON or just text
-    try {
-      const parsed = JSON.parse(reasoning.slice(reasoning.indexOf('{')));
-      traceCalls = parsed.tool_calls_made || [];
-    } catch (_) {}
+    const t1Indicators = (c.tier1_indicators || []);
+    const t2Indicators = (c.fraud_indicators || []);
+    const toolCalls    = (c.agent_tool_calls || []);
+    const reasoning    = c.agent_reasoning || '';
+    const imageUrl     = c.check_image_url || '';
 
-    const assignedAt = c.tier3_assigned_at
-      ? new Date(c.tier3_assigned_at).toLocaleString()
-      : '—';
+    const t1IndicatorsHtml = t1Indicators.length
+      ? t1Indicators.map(i => `<span class="indicator-chip tier1">${esc(i)}</span>`).join('')
+      : '<span style="color:#475569;font-size:12px;">None</span>';
 
-    const traceHtml = traceCalls.length
-      ? traceCalls.map(tc => `
+    const t2IndicatorsHtml = t2Indicators.length
+      ? t2Indicators.map(i => `<span class="indicator-chip">${esc(i)}</span>`).join('')
+      : '<span style="color:#475569;font-size:12px;">None</span>';
+
+    const traceHtml = toolCalls.length
+      ? toolCalls.map(tc => `
           <div class="trace-step">
             <div class="trace-icon">${toolIcon(tc.tool)}</div>
             <div class="trace-body">
-              <div class="trace-tool">${escHtml(tc.tool)}</div>
-              <div class="trace-args">${escHtml(JSON.stringify(tc.args))}</div>
+              <div class="trace-tool">${esc(tc.tool)}</div>
+              <div class="trace-args">${esc(JSON.stringify(tc.args))}</div>
             </div>
           </div>`).join('')
       : '<p style="color:#475569;font-size:13px;">No tool trace available</p>';
 
-    const indicatorsHtml = indicators.length
-      ? indicators.map(i => `<span class="indicator-chip">${escHtml(i)}</span>`).join('')
-      : '<span style="color:#475569;font-size:13px;">None</span>';
+    const imageHtml = imageUrl
+      ? `<img src="${esc(imageUrl)}" alt="Check image" onerror="this.parentElement.innerHTML='<p class=img-unavailable>Image unavailable</p>'" />`
+      : '<p class="img-unavailable">No image URL on record</p>';
 
-    panel.innerHTML = `
-      <div class="detail-title">
+    document.getElementById('detailInner').innerHTML = `
+      <div class="detail-header">
         <div>
-          <h2>Check #${escHtml(c.check_number || c.id.slice(0,8))}</h2>
-          <div class="meta">Escalated: ${assignedAt} &bull; Account: ${escHtml(c.account_number || '—')}</div>
-        </div>
-        <div class="action-buttons">
-          <button class="btn btn-approve" id="btnApprove" onclick="submitDecision('approve')">&#10003; Approve</button>
-          <button class="btn btn-reject"  id="btnReject"  onclick="submitDecision('reject')">&#10007; Reject</button>
+          <h2>Check #${esc(c.check_number || c.id.slice(0,8))}</h2>
+          <div class="meta">
+            Account: ${esc(c.account_number||'—')} &bull;
+            Escalated: ${c.tier3_assigned_at ? new Date(c.tier3_assigned_at).toLocaleString() : '—'}
+          </div>
         </div>
       </div>
 
+      <!-- Escalation path -->
+      <div class="escalation-banner">
+        <div class="esc-step">
+          <div class="step-label">Tier 1 Score</div>
+          <div class="step-score ${t1scoreClass}">${t1Score}</div>
+          <div class="step-reason">Rule engine<br>escalated</div>
+        </div>
+        <div class="esc-step">
+          <div class="step-label">Tier 2 AI Score</div>
+          <div class="step-score ${t2scoreClass}">${t2Score}</div>
+          <div class="step-reason">${esc((c.fraud_pattern||'unknown').replace(/_/g,' '))}<br>pattern</div>
+        </div>
+        <div class="esc-step">
+          <div class="step-label">Tier 3</div>
+          <div class="step-score score-blue">YOU</div>
+          <div class="step-reason">Human decision<br>required</div>
+        </div>
+      </div>
+
+      <!-- Key numbers -->
       <div class="cards-grid">
         <div class="card">
           <div class="card-label">Amount</div>
-          <div class="card-value amount-val">$${(c.amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
-          <div class="card-sub">&mdash;</div>
+          <div class="card-value amount-val">$${(c.amount||0).toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+          <div class="card-sub">${esc(c.memo||'—')}</div>
         </div>
         <div class="card">
           <div class="card-label">Payee</div>
-          <div class="card-value" style="font-size:16px;">${escHtml(c.payee_name || '—')}</div>
-          <div class="card-sub">&mdash;</div>
+          <div class="card-value" style="font-size:15px;">${esc(c.payee_name||'—')}</div>
+          <div class="card-sub">&nbsp;</div>
         </div>
         <div class="card">
           <div class="card-label">Risk Score</div>
-          <div class="card-value ${riskClass(c.risk_score)}">${c.risk_score ?? '—'}</div>
+          <div class="card-value ${t2Score >= 75 ? 'score-red' : t2Score >= 40 ? 'score-orange' : ''}">${t2Score}</div>
           <div class="card-sub">out of 100</div>
         </div>
-        <div class="card">
-          <div class="card-label">Fraud Pattern</div>
-          <div class="card-value" style="font-size:16px;">${escHtml((c.fraud_pattern || 'unknown').replace(/_/g,' '))}</div>
-          <div class="card-sub">&mdash;</div>
+      </div>
+
+      <!-- Check details -->
+      <div class="section">
+        <div class="section-title">&#128196; Check Details</div>
+        <div class="info-grid">
+          <div class="info-row"><span class="info-label">Customer</span><span class="info-value">${esc(c.customer_name||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Bank</span><span class="info-value">${esc(c.bank_name||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Account</span><span class="info-value">${esc(c.account_number||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Routing</span><span class="info-value">${esc(c.routing_number||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Issue Date</span><span class="info-value">${esc(c.issue_date||'—')}</span></div>
+          <div class="info-row"><span class="info-label">Submitted</span><span class="info-value">${c.submission_date ? new Date(c.submission_date).toLocaleString() : '—'}</span></div>
+          <div class="info-row"><span class="info-label">MICR Valid</span><span class="info-value">${c.extracted_fields?.micr_valid != null ? (c.extracted_fields.micr_valid ? 'Yes' : 'No') : '—'}</span></div>
+          <div class="info-row"><span class="info-label">Signature</span><span class="info-value">${c.extracted_fields?.signature_present != null ? (c.extracted_fields.signature_present ? 'Present' : 'Missing') : '—'}</span></div>
+          <div class="info-row"><span class="info-label">OCR Confidence</span><span class="info-value">${c.extracted_fields?.raw_ocr_confidence != null ? (c.extracted_fields.raw_ocr_confidence * 100).toFixed(0) + '%' : '—'}</span></div>
+          <div class="info-row"><span class="info-label">Amount Mismatch</span><span class="info-value">${c.extracted_fields?.amount_mismatch != null ? (c.extracted_fields.amount_mismatch ? 'Yes' : 'No') : '—'}</span></div>
         </div>
       </div>
 
+      <!-- Fraud indicators -->
       <div class="section">
         <div class="section-title">&#9888; Fraud Indicators</div>
-        <div class="indicators-list">${indicatorsHtml}</div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Tier 1 — Rules Engine</div>
+          <div class="indicators-list">${t1IndicatorsHtml}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;">Tier 2 — AI Agent</div>
+          <div class="indicators-list">${t2IndicatorsHtml}</div>
+        </div>
       </div>
 
+      <!-- Agent reasoning -->
       <div class="section">
         <div class="section-title">&#129504; Agent Reasoning</div>
-        <div class="reasoning-text">${escHtml(reasoning || 'No reasoning provided.')}</div>
+        <div class="reasoning-text">${esc(reasoning || 'No reasoning provided.')}</div>
       </div>
 
+      <!-- Tool trace -->
       <div class="section">
-        <div class="section-title">&#128270; Agent Tool Trace</div>
-        <div class="trace-container">${traceHtml}</div>
+        <div class="section-title">&#128269; Agent Tool Trace <span style="font-weight:400;color:#475569;">(${toolCalls.length} call${toolCalls.length !== 1 ? 's' : ''})</span></div>
+        ${traceHtml}
+      </div>
+
+      <!-- Check image -->
+      <div class="section">
+        <div class="section-title">&#128247; Check Image</div>
+        <div class="check-image-wrap">${imageHtml}</div>
       </div>
     `;
+
+    document.getElementById('detailScroll').scrollTop = 0;
   }
 
-  // ── Decision submission ──────────────────────────────────────────────────────
+  // ── Decision ──────────────────────────────────────────────────────────────────
 
   async function submitDecision(decision) {
     if (!currentCheck) return;
     const check = currentCheck;
-    const btnApprove = document.getElementById('btnApprove');
-    const btnReject  = document.getElementById('btnReject');
-
-    btnApprove.disabled = true;
-    btnReject.disabled  = true;
+    const notes = document.getElementById('analystNotes').value.trim();
+    document.getElementById('btnApprove').disabled = true;
+    document.getElementById('btnReject').disabled  = true;
 
     try {
       await apiPost(`/checks/${check.id}/decision`, {
         decision,
         analyst_id: 'analyst@dashboard',
-        notes: `Decision made via dashboard: ${decision}`
+        notes: notes || `Marked ${decision} via dashboard`
       });
-      showToast(`Check #${check.check_number || check.id.slice(0,8)} marked as ${decision.toUpperCase()}`, 'success');
+      showToast(`Check #${check.check_number || check.id.slice(0,8)} — ${decision.toUpperCase()}`, 'success');
 
-      // Remove from queue and refresh
       queueData = queueData.filter(c => c.id !== check.id);
       currentCheck = null;
       document.getElementById('queueCount').textContent = queueData.length;
       renderQueue();
-      document.getElementById('detailContent').classList.remove('visible');
+      document.getElementById('detailScroll').style.display = 'none';
+      document.getElementById('decisionBar').classList.remove('visible');
       document.getElementById('detailPlaceholder').style.display = '';
     } catch (e) {
-      showToast('Failed to submit decision: ' + e.message, 'error');
-      btnApprove.disabled = false;
-      btnReject.disabled  = false;
+      showToast('Failed: ' + e.message, 'error');
+      document.getElementById('btnApprove').disabled = false;
+      document.getElementById('btnReject').disabled  = false;
     }
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────────
+  // ── Init ──────────────────────────────────────────────────────────────────────
 
   loadQueue();
-  setInterval(loadQueue, 30000); // auto-refresh every 30s
+  setInterval(loadQueue, 30000);
 </script>
 </body>
 </html>
