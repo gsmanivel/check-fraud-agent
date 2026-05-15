@@ -8,3 +8,4 @@ azure-identity==1.19.0
 azure-keyvault-secrets==4.9.0
 openai==2.36.0
 pydantic==2.9.2
+semantic-kernel>=1.17.0,<2.0.0

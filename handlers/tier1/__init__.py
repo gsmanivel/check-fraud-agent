@@ -1,11 +1,11 @@
 import os, json, time, logging
 import azure.functions as func
 import azure.durable_functions as df
-from datetime import datetime, timezone, timedelta
 
-from handlers.shared.cosmos import get_cosmos_container, get_customer, upsert_check, write_audit_log
+from handlers.shared.cosmos import get_customer, upsert_check, write_audit_log
 from handlers.shared.servicebus import enqueue_message
 from handlers.shared.utils import confidence_gate, get_account_age_days
+from handlers.shared.velocity import query_velocity
 
 logger = logging.getLogger(__name__)
 bp = df.Blueprint()
@@ -89,13 +89,9 @@ def _t1_account(payload: dict) -> dict:
 
 def _t1_velocity(payload: dict) -> dict:
     indicators, risk = [], 0
-    acct      = payload.get("account_number", "")
-    container = get_cosmos_container(os.environ["COSMOS_CHECKS_CONTAINER"])
-    cutoff    = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    count_q   = f"SELECT VALUE COUNT(1) FROM c WHERE c.account_number='{acct}' AND c.submission_date>='{cutoff}' AND c.id!='{payload.get('id','')}'"
-    amount_q  = f"SELECT VALUE SUM(c.amount) FROM c WHERE c.account_number='{acct}' AND c.submission_date>='{cutoff}' AND c.id!='{payload.get('id','')}'"
-    count_24h = (list(container.query_items(query=count_q,  enable_cross_partition_query=True)) or [0])[0]
-    total_24h = ((list(container.query_items(query=amount_q, enable_cross_partition_query=True)) or [0])[0] or 0) + payload.get("amount", 0)
+    data      = query_velocity(payload.get("account_number", ""), days_back=1, exclude_check_id=payload.get("id", ""))
+    count_24h = data["count"]
+    total_24h = data["total"] + payload.get("amount", 0)
     if count_24h >= 5:    indicators.append("high_velocity_5plus_24h");        risk += 35
     elif count_24h >= 3:  indicators.append("elevated_velocity_3plus_24h");    risk += 15
     if total_24h >= 9000: indicators.append("cumulative_amount_near_ctr_24h"); risk += 30

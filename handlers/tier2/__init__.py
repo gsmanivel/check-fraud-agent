@@ -1,37 +1,12 @@
 import os, json, time, logging
 import azure.functions as func
 import azure.durable_functions as df
-from datetime import datetime, timezone, timedelta
-from openai import AzureOpenAI
 
-from handlers.shared.cosmos import get_cosmos_container, get_customer, upsert_check, write_audit_log
+from handlers.shared.cosmos import upsert_check, write_audit_log
 from handlers.shared.servicebus import enqueue_message
 
 logger = logging.getLogger(__name__)
 bp = df.Blueprint()
-
-MAX_ITERATIONS  = int(os.environ.get("AGENT_MAX_ITERATIONS", "6"))
-TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "30"))
-
-TOOLS = [
-    {"type": "function", "function": {"name": "customer_lookup", "description": "Look up full customer profile.", "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}}, "required": ["account_number"]}}},
-    {"type": "function", "function": {"name": "velocity_check", "description": "Check transaction frequency and totals for structuring detection.", "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}, "days_back": {"type": "integer", "default": 30}}, "required": ["account_number"]}}},
-    {"type": "function", "function": {"name": "signature_check", "description": "Validate check signature.", "parameters": {"type": "object", "properties": {"check_id": {"type": "string"}, "account_number": {"type": "string"}}, "required": ["check_id", "account_number"]}}},
-    {"type": "function", "function": {"name": "fraud_pattern_search", "description": "Search fraud pattern knowledge base.", "parameters": {"type": "object", "properties": {"indicators": {"type": "array", "items": {"type": "string"}}, "account_number": {"type": "string"}}, "required": ["indicators"]}}},
-    {"type": "function", "function": {"name": "payee_verify", "description": "Verify if payee is known or suspicious.", "parameters": {"type": "object", "properties": {"payee_name": {"type": "string"}, "amount": {"type": "number"}}, "required": ["payee_name"]}}},
-    {"type": "function", "function": {"name": "escalate_to_human", "description": "Escalate to human analyst. Use only after exhausting other tools.", "parameters": {"type": "object", "properties": {"reason": {"type": "string"}, "suspected_pattern": {"type": "string", "enum": ["structuring", "altered_check", "synthetic_identity", "unknown"]}, "risk_score": {"type": "integer"}}, "required": ["reason", "suspected_pattern", "risk_score"]}}}
-]
-
-SYSTEM_PROMPT = """You are an expert check fraud detection agent.
-Analyze escalated checks using available tools. Reason across ALL signals.
-Rules:
-- Start with customer_lookup
-- Use velocity_check for amounts near $10,000
-- Use fraud_pattern_search once you have indicators
-- Maximum 6 tool calls total
-- Only escalate_to_human after using at least 3 other tools
-Always end with a JSON decision:
-{"decision":"approve"|"reject"|"escalate","risk_score":0-100,"fraud_pattern":"structuring"|"altered_check"|"synthetic_identity"|"unknown"|null,"fraud_indicators":[],"reasoning":"explanation"}"""
 
 
 @bp.service_bus_queue_trigger(
@@ -39,14 +14,22 @@ Always end with a JSON decision:
     queue_name="%TIER2_QUEUE_NAME%",
     connection="SERVICE_BUS_CONNECTION_STRING"
 )
-def tier2_agent(msg: func.ServiceBusMessage):
+async def tier2_agent(msg: func.ServiceBusMessage):
     start    = time.time()
     payload  = json.loads(msg.get_body().decode("utf-8"))
     check_id = payload.get("id")
-    logger.info(f"Tier 2 agent processing: {check_id}")
+    engine   = os.environ.get("TIER2_ENGINE", "native")
+    logger.info(f"Tier 2 [{engine}] processing: {check_id}")
+
     try:
-        result = _run_agent(payload, start)
-        ms     = int((time.time() - start) * 1000)
+        if engine == "sk":
+            from handlers.tier2.sk_agent import run_agent_sk
+            result = await run_agent_sk(payload, start)
+        else:
+            from handlers.tier2.native import run_agent_native
+            result = run_agent_native(payload, start)
+
+        ms = int((time.time() - start) * 1000)
         payload.update({
             "risk_score":       result["risk_score"],
             "fraud_decision":   result["decision"],
@@ -55,146 +38,18 @@ def tier2_agent(msg: func.ServiceBusMessage):
             "agent_reasoning":  result.get("reasoning", ""),
             "agent_tool_calls": result.get("tool_calls_made", []),
             "agent_iterations": result.get("iterations", 0),
+            "agent_engine":     result.get("engine", engine),
             "processing_tier":  "tier2",
             "status":           result["decision"] if result["decision"] != "escalate" else "escalated_tier3"
         })
         upsert_check(payload)
-        write_audit_log(check_id, "tier2", result["decision"], {**result, "ms": ms})
+        write_audit_log(check_id, "tier2", result["decision"], {**result, "ms": ms, "engine": engine})
+
         if result["decision"] == "escalate":
             enqueue_message(os.environ["TIER3_QUEUE_NAME"], payload)
-        msg.complete()
-        logger.info(f"Tier 2 done: {check_id} | {result['decision']} | {ms}ms")
+
+        logger.info(f"Tier 2 [{engine}] done: {check_id} | {result['decision']} | {ms}ms")
+
     except Exception as e:
-        logger.error(f"Tier 2 failed {check_id}: {e}", exc_info=True)
-        msg.abandon()
+        logger.error(f"Tier 2 [{engine}] failed {check_id}: {e}", exc_info=True)
         raise
-
-
-def _run_agent(payload: dict, start_time: float) -> dict:
-    client = AzureOpenAI(
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_key=os.environ["AZURE_OPENAI_KEY"],
-        api_version="2024-08-01-preview"
-    )
-    ef = payload.get("extracted_fields", {})
-    user_message = (
-        f"Analyze this check for fraud:\n"
-        f"CHECK: id={payload.get('id')} amount=${payload.get('amount', 0):,.2f} "
-        f"payee={payload.get('payee_name')} account={payload.get('account_number')} "
-        f"bank={payload.get('bank_name')} submitted={payload.get('submission_date')}\n"
-        f"EXTRACTION: micr_valid={ef.get('micr_valid')} amount_mismatch={ef.get('amount_mismatch')} "
-        f"signature={ef.get('signature_present')} ocr_confidence={ef.get('raw_ocr_confidence', 1.0):.0%}\n"
-        f"TIER1: risk_score={payload.get('tier1_risk_score', 'N/A')} "
-        f"indicators={', '.join(payload.get('tier1_indicators', [])) or 'None'}\n"
-        f"Investigate and provide your final JSON decision."
-    )
-    messages        = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_message}]
-    tool_calls_made = []
-    iterations      = 0
-    escalation      = None
-
-    while iterations < MAX_ITERATIONS:
-        if time.time() - start_time > TIMEOUT_SECONDS:
-            break
-        iterations += 1
-        response = client.chat.completions.create(
-            model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
-            messages=messages, tools=TOOLS, tool_choice="auto",
-            temperature=0.1, max_tokens=2000
-        )
-        message = response.choices[0].message
-        if not message.tool_calls:
-            return _parse_decision(message.content, tool_calls_made, iterations)
-        messages.append({"role": "assistant", "content": message.content, "tool_calls": [
-            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-            for tc in message.tool_calls
-        ]})
-        for tc in message.tool_calls:
-            name   = tc.function.name
-            args   = json.loads(tc.function.arguments)
-            tool_calls_made.append({"tool": name, "args": args})
-            result = _exec_tool(name, args, payload)
-            if name == "escalate_to_human":
-                escalation = args
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
-
-    if escalation:
-        return {
-            "decision": "escalate", "risk_score": escalation.get("risk_score", 60),
-            "fraud_pattern": escalation.get("suspected_pattern", "unknown"),
-            "fraud_indicators": [], "reasoning": escalation.get("reason", ""),
-            "tool_calls_made": tool_calls_made, "iterations": iterations
-        }
-    return {
-        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
-        "fraud_indicators": ["max_iterations_reached"], "reasoning": "Agent reached iteration limit",
-        "tool_calls_made": tool_calls_made, "iterations": iterations
-    }
-
-
-def _exec_tool(name: str, args: dict, payload: dict) -> dict:
-    try:
-        if name == "customer_lookup":
-            customer = get_customer(args["account_number"])
-            if not customer:
-                return {"found": False}
-            return {
-                "found": True, "customer_name": customer.get("customer_name"),
-                "account_status": customer.get("account_status"), "kyc_verified": customer.get("kyc_verified"),
-                "synthetic_identity_risk": customer.get("synthetic_identity_risk"),
-                "avg_monthly_balance": customer.get("avg_monthly_balance"),
-                "linked_accounts": customer.get("linked_accounts", []), "flags": customer.get("flags", [])
-            }
-        elif name == "velocity_check":
-            container = get_cosmos_container(os.environ["COSMOS_CHECKS_CONTAINER"])
-            cutoff    = (datetime.now(timezone.utc) - timedelta(days=args.get("days_back", 30))).isoformat()
-            acct      = args["account_number"]
-            count_q   = f"SELECT VALUE COUNT(1) FROM c WHERE c.account_number='{acct}' AND c.submission_date>='{cutoff}'"
-            amount_q  = f"SELECT VALUE SUM(c.amount) FROM c WHERE c.account_number='{acct}' AND c.submission_date>='{cutoff}'"
-            txn_q     = f"SELECT c.amount, c.submission_date FROM c WHERE c.account_number='{acct}' AND c.submission_date>='{cutoff}' ORDER BY c.submission_date DESC"
-            count     = (list(container.query_items(query=count_q,  enable_cross_partition_query=True)) or [0])[0]
-            total     = (list(container.query_items(query=amount_q, enable_cross_partition_query=True)) or [0])[0] or 0
-            txns      = list(container.query_items(query=txn_q, enable_cross_partition_query=True))
-            near_ctr  = sum(1 for t in txns if 8500 <= t.get("amount", 0) <= 9999)
-            return {"total_checks": count, "total_amount": round(total, 2), "near_ctr_threshold_count": near_ctr, "structuring_risk": near_ctr >= 2, "recent_transactions": txns[:10]}
-        elif name == "signature_check":
-            ef  = payload.get("extracted_fields", {})
-            sig = ef.get("signature_present", False)
-            return {"signature_present": sig, "signature_match": sig, "confidence": 0.85 if sig else 0.0}
-        elif name == "fraud_pattern_search":
-            container  = get_cosmos_container("fraud_cases")
-            all_cases  = list(container.read_all_items())
-            indicators = set(args.get("indicators", []))
-            matches    = []
-            for case in all_cases:
-                overlap = set(case.get("agent_signals", [])).intersection(indicators)
-                if overlap:
-                    matches.append({"pattern": case.get("pattern"), "description": case.get("description"), "matching_signals": list(overlap), "match_confidence": len(overlap) / max(len(indicators), 1)})
-            matches.sort(key=lambda x: x["match_confidence"], reverse=True)
-            return {"matches_found": len(matches), "top_matches": matches[:3]}
-        elif name == "payee_verify":
-            payee      = args.get("payee_name", "")
-            suspicious = any(kw in payee.lower() for kw in ["cash", "bearer", "atm", "wire", "anonymous"])
-            return {"payee_name": payee, "suspicious": suspicious, "risk_assessment": "suspicious" if suspicious else "low_risk"}
-        elif name == "escalate_to_human":
-            return {"status": "escalation_queued", "reason": args.get("reason")}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dict:
-    try:
-        start = content.find("{")
-        end   = content.rfind("}") + 1
-        if start >= 0 and end > start:
-            d = json.loads(content[start:end])
-            d["tool_calls_made"] = tool_calls_made
-            d["iterations"]      = iterations
-            return d
-    except Exception:
-        pass
-    return {
-        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
-        "fraud_indicators": ["parse_error"], "reasoning": content or "Parse error",
-        "tool_calls_made": tool_calls_made, "iterations": iterations
-    }

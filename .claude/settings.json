@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(git -C /Users/manivelsubramaniyan/Downloads/check-fraud-agent commit -m ' *)",
+      "Bash(git -C /Users/manivelsubramaniyan/Downloads/check-fraud-agent add dashboard.html)",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(python scripts/run_scenarios.py *)",
+      "Bash(curl -s https://checkfraudagent-gphqemb0gtfubzgz* *)",
+      "Bash(python -m pytest tests/ *)",
+      "Bash(ls /Users/manivelsubramaniyan/Downloads/check-fraud-agent/.claude/commands/ && echo \"---\" && ls ~/.claude/commands/ 2>/dev/null || echo \"No global commands folder\")",
+      "Read(//Users/manivelsubramaniyan/.claude/**)",
+      "Bash(python3 -m json.tool)",
+      "Bash(git -C /Users/manivelsubramaniyan/Downloads/check-fraud-agent status local.settings.json)",
+      "Bash(git -C /Users/manivelsubramaniyan/Downloads/check-fraud-agent log --oneline --all -- local.settings.json)",
+      "Bash(git -C /Users/manivelsubramaniyan/Downloads/check-fraud-agent diff host.json)",
+      "Bash(git -C /Users/manivelsubramaniyan/Downloads/check-fraud-agent diff .funcignore)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/manivelsubramaniyan/Downloads/check-fraud-agent && python -m pytest tests/ -q --tb=short 2>&1 | tail -5"
+          }
+        ]
+      }
+    ]
+  }
+}

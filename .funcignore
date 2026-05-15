@@ -6,7 +6,6 @@ tests
 docs
 scripts
 *.md
-dashboard.html
 synthetic_data_full.json
 __pycache__
 .pytest_cache

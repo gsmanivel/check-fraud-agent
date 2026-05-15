@@ -13,8 +13,9 @@ def get_cosmos_container(container_name: str):
 
 def get_customer(account_number: str):
     container = get_cosmos_container(os.environ["COSMOS_CUSTOMERS_CONTAINER"])
-    query = f"SELECT * FROM c WHERE c.account_number = '{account_number}'"
-    items = list(container.query_items(query=query, enable_cross_partition_query=True))
+    query  = "SELECT * FROM c WHERE c.account_number = @account_number"
+    params = [{"name": "@account_number", "value": account_number}]
+    items  = list(container.query_items(query=query, parameters=params, enable_cross_partition_query=True))
     return items[0] if items else None
 
 

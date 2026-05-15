@@ -40,7 +40,8 @@ async def analyst_decision_endpoint(req: func.HttpRequest) -> func.HttpResponse:
 
     container = get_cosmos_container(os.environ["COSMOS_CHECKS_CONTAINER"])
     rows = list(container.query_items(
-        query=f"SELECT * FROM c WHERE c.id='{check_id}'",
+        query="SELECT * FROM c WHERE c.id=@check_id",
+        parameters=[{"name": "@check_id", "value": check_id}],
         enable_cross_partition_query=True
     ))
     if not rows:
@@ -68,7 +69,8 @@ async def get_check_status(req: func.HttpRequest) -> func.HttpResponse:
     check_id  = req.route_params.get("check_id")
     container = get_cosmos_container(os.environ["COSMOS_CHECKS_CONTAINER"])
     rows = list(container.query_items(
-        query=f"SELECT c.id, c.status, c.fraud_decision, c.analyst_decision FROM c WHERE c.id='{check_id}'",
+        query="SELECT c.id, c.status, c.fraud_decision, c.analyst_decision FROM c WHERE c.id=@check_id",
+        parameters=[{"name": "@check_id", "value": check_id}],
         enable_cross_partition_query=True
     ))
     if not rows:

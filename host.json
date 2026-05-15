@@ -1,8 +1,24 @@
 {
   "version": "2.0",
-  "isDefaultHostConfig": true,
   "extensionBundle": {
     "id": "Microsoft.Azure.Functions.ExtensionBundle",
     "version": "[4.*, 5.0.0)"
+  },
+  "functionTimeout": "00:10:00",
+  "serviceBus": {
+    "maxConcurrentCalls": 5,
+    "autoCompleteMessages": true
+  },
+  "retry": {
+    "strategy": "fixedDelay",
+    "maxRetryCount": 3,
+    "delayInterval": "00:00:10"
+  },
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": false
+      }
+    }
   }
 }

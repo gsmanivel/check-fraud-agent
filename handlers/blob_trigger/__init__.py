@@ -23,6 +23,9 @@ def blob_trigger(checkblob: func.InputStream):
     logger.info(f"Blob trigger fired: {blob_name}")
     try:
         blob_bytes = checkblob.read()
+        if len(blob_bytes) > 5_000_000:
+            logger.error(f"Blob {blob_name} exceeds 5MB limit ({len(blob_bytes)} bytes); skipping")
+            return
         extracted  = _extract_check_fields(blob_bytes)
         check_id   = str(uuid.uuid4())
         payload = {
