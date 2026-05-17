@@ -344,10 +344,15 @@ Currently serves [dashboard.html](dashboard.html) from the function via `open()`
 
 ---
 
-### N10. SBOM + dependency scanning
-**File:** [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
+### N10. SBOM + dependency scanning ✅ PARTIAL FIX 2026-05-17
+**Files:** [.github/dependabot.yml](.github/dependabot.yml), [.github/workflows/codeql.yml](.github/workflows/codeql.yml), [.github/workflows/security.yml](.github/workflows/security.yml)
 
-**Fix:** Add **Dependabot**, **`pip-audit`** in CI, **CodeQL** for Python. Generate SBOM via `cyclonedx-py` and attach to release artifacts.
+**Resolution:**
+- **Dependabot** — weekly Monday scans for pip + github-actions, grouped by ecosystem (`azure-*`, `openai`+`semantic-kernel`). PR limit set to 5/3 to avoid flooding.
+- **CodeQL** — `security-and-quality` query pack, runs on push/PR/weekly. Standard `github/codeql-action/init+analyze` v3.
+- **`pip-audit`** — runs on PR when `requirements.txt` changes and weekly. `--strict` so unfixable advisories also fail the job.
+
+**Still TODO (deferred):** SBOM generation via `cyclonedx-py` attached to release artifacts — defer until we have a release process beyond push-to-main.
 
 ---
 

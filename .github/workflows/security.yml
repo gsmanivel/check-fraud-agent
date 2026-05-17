@@ -1,0 +1,36 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "requirements.txt"
+      - ".github/workflows/security.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "requirements.txt"
+      - ".github/workflows/security.yml"
+  schedule:
+    - cron: "0 6 * * 1"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  pip-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit dependencies
+        run: pip-audit --requirement requirements.txt --strict --disable-pip
