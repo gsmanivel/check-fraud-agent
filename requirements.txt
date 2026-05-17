@@ -9,6 +9,6 @@ azure-ai-agents>=1.2.0b6,<2.0.0
 azure-identity==1.19.0
 azure-keyvault-secrets==4.9.0
 openai==2.36.0
-pydantic==2.9.2
+pydantic==2.13.4
 pydantic-settings==2.5.2
 semantic-kernel>=1.17.0,<2.0.0
