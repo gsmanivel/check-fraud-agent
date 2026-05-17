@@ -225,7 +225,7 @@ Covers `_t1_micr`, `_t1_amount`, and `confidence_gate`. **Missing:** `_t1_accoun
 ### M9. No static analysis in CI
 **File:** [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
 
-No `ruff`, `mypy`, `bandit`, or `pip-audit` on every PR (`pip-audit` runs only when `requirements.txt` changes — see N10).
+No `ruff`, `mypy`, `bandit`, or `pip-audit` in CI.
 
 **Fix:** Add a `lint` job to CI; gate `deploy` on it.
 
@@ -290,10 +290,13 @@ Currently serves [dashboard.html](dashboard.html) from the function via `open()`
 
 ---
 
-### N10. SBOM generation
-**Files:** [.github/dependabot.yml](.github/dependabot.yml), [.github/workflows/codeql.yml](.github/workflows/codeql.yml), [.github/workflows/security.yml](.github/workflows/security.yml)
+### N10. Dependency + SBOM coverage
+**Files:** [.github/dependabot.yml](.github/dependabot.yml)
 
-Dependabot + CodeQL + `pip-audit` landed 2026-05-17. Remaining: SBOM generation via `cyclonedx-py` attached to release artifacts — defer until we have a release process beyond push-to-main.
+Dependabot landed 2026-05-17 (weekly scans for pip + github-actions). CodeQL and `pip-audit` workflows were also added but removed shortly after — both ran red on every push (CodeQL: repo-level Code Scanning toggle off, requires GitHub Advanced Security on private repos; pip-audit: flag-combo bug). Remaining:
+- Re-introduce dependency vulnerability scanning (`pip-audit` with the correct flags, or an alternative like `safety`)
+- Enable Code Scanning in repo settings and restore CodeQL
+- SBOM generation via `cyclonedx-py` attached to release artifacts — defer until we have a release process beyond push-to-main.
 
 ---
 
@@ -311,7 +314,7 @@ Dependabot + CodeQL + `pip-audit` landed 2026-05-17. Remaining: SBOM generation 
 | **Observability** | Plain logs | OpenTelemetry + custom metrics | 🟡 |
 | **IaC** | Manual portal | Bicep + `azd` | 🟢 |
 | **Test coverage** | ~15% | ≥70% | 🟡 |
-| **CI quality gates** | Pytest + pip-audit + CodeQL | + ruff + mypy + bandit + eval | 🟡 |
+| **CI quality gates** | Pytest + Dependabot | + ruff + mypy + bandit + pip-audit + CodeQL + eval | 🟡 |
 
 ---
 
@@ -428,7 +431,7 @@ DLQ alerting and idempotency now go into Bicep (Phase 3) cleanly.
 - **M5** Rename or implement `signature_check`
 - **M6** Pydantic body validation on analyst endpoint
 - **M8** Test coverage → 70%+
-- **M9** ruff + mypy + bandit in CI (additive to existing CodeQL + pip-audit)
+- **M9** ruff + mypy + bandit in CI; restore pip-audit + CodeQL (N10)
 - **N4** Image moderation + agent-output filtering
 - **N10** SBOM generation in release artifacts
 
