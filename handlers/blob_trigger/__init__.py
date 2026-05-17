@@ -2,12 +2,15 @@ import os, uuid, logging
 import azure.functions as func
 import azure.durable_functions as df
 from datetime import datetime, timezone
-from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentSignatureType
 from azure.core.credentials import AzureKeyCredential
 
 from handlers.shared.cosmos import upsert_check
 from handlers.shared.servicebus import enqueue_message
 from handlers.shared.utils import validate_micr
+
+DOC_INTELLIGENCE_MODEL = os.environ.get("DOCUMENT_INTELLIGENCE_MODEL", "prebuilt-check.us")
 
 logger = logging.getLogger(__name__)
 bp = df.Blueprint()
@@ -58,8 +61,11 @@ def blob_trigger(checkblob: func.InputStream):
 def _extract_check_fields(blob_bytes: bytes) -> dict:
     endpoint = os.environ["DOCUMENT_INTELLIGENCE_ENDPOINT"]
     key      = os.environ["DOCUMENT_INTELLIGENCE_KEY"]
-    client   = DocumentAnalysisClient(endpoint=endpoint, credential=AzureKeyCredential(key))
-    poller   = client.begin_analyze_document(model_id="prebuilt-check", document=blob_bytes)
+    client   = DocumentIntelligenceClient(endpoint=endpoint, credential=AzureKeyCredential(key))
+    poller   = client.begin_analyze_document(
+        DOC_INTELLIGENCE_MODEL,
+        AnalyzeDocumentRequest(bytes_source=blob_bytes),
+    )
     result   = poller.result()
     extracted = {
         "amount_numeric": 0.0, "amount_words": "", "payee_name": "",
@@ -70,22 +76,36 @@ def _extract_check_fields(blob_bytes: bytes) -> dict:
     }
     if result.documents:
         doc    = result.documents[0]
-        fields = doc.fields
+        fields = doc.fields or {}
 
-        def fval(name):
-            return fields[name].value if name in fields and fields[name].value else None
+        def get_string(name: str) -> str:
+            f = fields.get(name)
+            if not f:
+                return ""
+            return f.value_string or f.content or ""
 
-        extracted["amount_numeric"]     = float(fval("Amount") or 0)
-        extracted["amount_words"]       = fval("AmountInWords") or ""
-        extracted["payee_name"]         = fval("PayToTheOrderOf") or ""
-        extracted["account_number"]     = fval("AccountNumber") or ""
-        extracted["routing_number"]     = fval("RoutingNumber") or ""
-        extracted["micr_line"]          = fval("MicrLine") or ""
-        extracted["bank_name"]          = fval("BankName") or ""
-        extracted["memo"]               = fval("Memo") or ""
-        extracted["issue_date"]         = str(fval("Date") or "")
-        extracted["customer_name"]      = fval("DrawerName") or ""
-        extracted["signature_present"]  = fval("Signature") is not None
+        amount_field = fields.get("Amount")
+        if amount_field and amount_field.value_currency and amount_field.value_currency.amount is not None:
+            extracted["amount_numeric"] = float(amount_field.value_currency.amount)
+
+        extracted["amount_words"]   = get_string("AmountInWords")
+        extracted["payee_name"]     = get_string("PayToTheOrderOf")
+        extracted["account_number"] = get_string("AccountNumber")
+        extracted["routing_number"] = get_string("RoutingNumber")
+        extracted["micr_line"]      = get_string("MicrLine")
+        extracted["bank_name"]      = get_string("BankName")
+        extracted["memo"]           = get_string("Memo")
+        extracted["customer_name"]  = get_string("DrawerName")
+
+        date_field = fields.get("Date")
+        if date_field and date_field.value_date:
+            extracted["issue_date"] = date_field.value_date.isoformat()
+
+        sig_field = fields.get("Signature")
+        extracted["signature_present"] = bool(
+            sig_field and sig_field.value_signature == DocumentSignatureType.SIGNED
+        )
+
         extracted["raw_ocr_confidence"] = doc.confidence or 0.0
         extracted["micr_valid"]         = validate_micr(extracted["routing_number"])
         extracted["amount_mismatch"]    = _check_amount_mismatch(

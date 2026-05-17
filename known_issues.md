@@ -273,12 +273,16 @@ No `ruff`, `mypy`, `bandit`, or `pip-audit`.
 
 ## 🟢 Modernization — Azure-Native Standards
 
-### N1. Use `azure-ai-documentintelligence` (v4), not `azure-ai-formrecognizer` (v3)
-**File:** [requirements.txt:6](requirements.txt#L6)
+### N1. Use `azure-ai-documentintelligence` (v4), not `azure-ai-formrecognizer` (v3) ✅ FIXED 2026-05-17
+**Files:** [requirements.txt](requirements.txt), [handlers/blob_trigger/__init__.py](handlers/blob_trigger/__init__.py)
 
-`azure-ai-formrecognizer==3.3.3` is the **deprecated** SDK.
-
-**Fix:** Migrate to `azure-ai-documentintelligence>=1.0.0`. The `prebuilt-check` model identifier and field names have evolved.
+**Resolution:**
+- `requirements.txt`: replaced `azure-ai-formrecognizer==3.3.3` with `azure-ai-documentintelligence>=1.0.2,<2.0.0`
+- Client: `DocumentAnalysisClient` → `DocumentIntelligenceClient`
+- Request body: `document=blob_bytes` kwarg → `AnalyzeDocumentRequest(bytes_source=blob_bytes)` positional body
+- Model identifier: `prebuilt-check` → `prebuilt-check.us` (US bank checks specifically), overridable via `DOCUMENT_INTELLIGENCE_MODEL` env var
+- Field accessors: single `.value` attr → typed accessors (`value_string`, `value_currency`, `value_date`, `value_signature`)
+- Signature now correctly checks for `DocumentSignatureType.SIGNED` enum rather than treating any non-null value as present
 
 ---
 
