@@ -6,9 +6,7 @@ on:
   pull_request:
     branches: [main]
 
-# Serialize deploys against the same Function App. A new push cancels any
-# in-flight deploy job — Azure's Kudu deployment lock can't recover cleanly
-# if two `az functionapp deployment source config-zip` calls land in parallel.
+# Serialize deploys against the same Function App.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
@@ -58,13 +56,15 @@ jobs:
       - name: Create deployment package
         run: zip -r deploy.zip host.json requirements.txt function_app.py handlers/ dashboard.html
 
-      - name: Deploy to Azure Functions
-        run: |
-          az functionapp deployment source config-zip \
-            --name ${{ env.AZURE_FUNCTIONAPP_NAME }} \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }} \
-            --src deploy.zip
+      # Flex Consumption requires the Azure Functions Action (or `az functionapp deploy`).
+      # The legacy `az functionapp deployment source config-zip` writes only Kudu state
+      # blobs on Flex and never updates released-package.zip, leaving the runtime on
+      # stale code while reporting success.
+      - name: Deploy to Azure Functions (Flex Consumption)
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: deploy.zip
 
       - name: Smoke test deployed function
         run: |

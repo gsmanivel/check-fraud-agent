@@ -7,8 +7,8 @@ the managed Azure AI Foundry Agent Service runtime:
 
   - Server-side agent (instructions + tool defs + JSON schema response format)
     is created on first call and cached per worker.
-  - Each check gets a fresh thread (no cross-check memory yet — see N2 in
-    known_issues.md for the threads-keyed-by-account follow-on).
+  - Each check gets a fresh thread (no cross-check memory yet —
+    threads-keyed-by-account is a future enhancement).
   - Tool calls execute client-side via `enable_auto_function_calls`; payload
     is passed to tool callables via a contextvar.
 
