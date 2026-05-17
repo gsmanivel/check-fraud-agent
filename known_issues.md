@@ -291,11 +291,12 @@ Currently serves [dashboard.html](dashboard.html) from the function via `open()`
 ---
 
 ### N10. Dependency + SBOM coverage
-**Files:** [.github/dependabot.yml](.github/dependabot.yml)
+**Files:** none (all CI dependency tooling removed 2026-05-17)
 
-Dependabot landed 2026-05-17 (weekly scans for pip + github-actions). CodeQL and `pip-audit` workflows were also added but removed shortly after — both ran red on every push (CodeQL: repo-level Code Scanning toggle off, requires GitHub Advanced Security on private repos; pip-audit: flag-combo bug). Remaining:
-- Re-introduce dependency vulnerability scanning (`pip-audit` with the correct flags, or an alternative like `safety`)
-- Enable Code Scanning in repo settings and restore CodeQL
+Dependabot, CodeQL, and `pip-audit` were added and then removed on the same day — CodeQL needs Code Scanning enabled in repo settings (requires GitHub Advanced Security on private repos); `pip-audit` had a flag-combo bug; Dependabot was generating PR noise without a triage process. Remaining:
+- Pick a dependency vulnerability scanner that works on private repos without GHAS (`pip-audit` with correct flags, `safety`, `osv-scanner`)
+- Re-enable Dependabot once we have a triage cadence
+- Enable Code Scanning + restore CodeQL when GHAS is in budget
 - SBOM generation via `cyclonedx-py` attached to release artifacts — defer until we have a release process beyond push-to-main.
 
 ---
@@ -314,7 +315,7 @@ Dependabot landed 2026-05-17 (weekly scans for pip + github-actions). CodeQL and
 | **Observability** | Plain logs | OpenTelemetry + custom metrics | 🟡 |
 | **IaC** | Manual portal | Bicep + `azd` | 🟢 |
 | **Test coverage** | ~15% | ≥70% | 🟡 |
-| **CI quality gates** | Pytest + Dependabot | + ruff + mypy + bandit + pip-audit + CodeQL + eval | 🟡 |
+| **CI quality gates** | Pytest only | + ruff + mypy + bandit + pip-audit + CodeQL + Dependabot + eval | 🟡 |
 
 ---
 
