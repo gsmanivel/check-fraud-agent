@@ -24,16 +24,24 @@ Anyone with the URL can approve/reject checks, read the queue, or fetch the dash
 
 ---
 
-### C2. CI silently swallows deployment failures ✅ FIXED 2026-05-17
+### C2. CI silently swallows deployment failures ✅ VERIFIED FIXED 2026-05-17
 **File:** [.github/workflows/deploy.yml](.github/workflows/deploy.yml)
 
-`--src deploy.zip || true` masked any `az` CLI error. Worse: `AZURE_FUNCTIONAPP_NAME` was set to `checkfraudagent` but the real app is `checkfraudagent-gphqemb0gtfubzgz`, so every CI deploy had been failing silently. The `az functionapp show` "verify" step queried resource state, not deployed code, so always returned green.
+`--src deploy.zip || true` masked any `az` CLI error. The `az functionapp show` "verify" step queried resource state, not deployed code, so it always returned green. Azure deployment history confirmed CI deploys had been **failing silently since commit 07c1597 (2026-05-15)** — the live function was serving code from the previous successful deploy on 2026-05-14.
 
-**Resolution:**
-- Corrected `AZURE_FUNCTIONAPP_NAME` to the full name
-- Extracted `AZURE_RESOURCE_GROUP` and `AZURE_REGION` to workflow env (DRY)
+**Investigation gotcha:** the deployed hostname is `checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net` (Azure adds a uniqueness suffix to Flex Consumption hostnames). README/CLAUDE referred to this hostname, but the **az CLI resource name is just `checkfraudagent`**. The workflow had the resource name correct all along; the silent failure was something else (likely a transient or permissions issue from before this branch).
+
+**Resolution (commits 70c646b, 682284a):**
+- `AZURE_FUNCTIONAPP_NAME` = `checkfraudagent` (used by `az functionapp` commands)
+- `AZURE_FUNCTIONAPP_HOSTNAME` = full hostname (used by the HTTP smoke test)
 - Removed `|| true` from the deploy step
 - Replaced the no-op `az functionapp show` step with a real HTTP smoke test that probes `/api/checks/queue` with retry/backoff and fails the job on non-200
+
+**Verification (2026-05-17):**
+- GitHub Actions: 🟢 green
+- Live endpoint `GET /api/checks/queue`: HTTP 200, valid JSON response
+- New Azure deployment record at `received_time=2026-05-17T13:24:25Z`
+- Caveat: this push only touched workflow + docs; first end-to-end runtime validation will happen on the next handler-code commit
 
 ---
 
@@ -309,12 +317,12 @@ Azure OpenAI's **Responses API** (current preview/GA) replaces Chat Completions 
 
 ---
 
-### N7. API version pin
-**Files:** [handlers/tier2/native.py:37](handlers/tier2/native.py#L37), [handlers/tier2/sk_agent.py:167](handlers/tier2/sk_agent.py#L167)
+### N7. API version pin ✅ FIXED 2026-05-17
+**Files:** [handlers/tier2/native.py:11](handlers/tier2/native.py#L11), [handlers/tier2/sk_agent.py:167](handlers/tier2/sk_agent.py#L167)
 
-Both pin `2024-08-01-preview`.
+Both files hard-coded `2024-08-01-preview`.
 
-**Fix:** Move to a **stable GA** version (`2024-10-21` or later) or current preview if needed for new features. Centralize in config.
+**Resolution:** Both engines now read `AZURE_OPENAI_API_VERSION` from env (default `2024-10-21`, stable GA). `local.settings.json` and CLAUDE.md updated. Set the same env var in the Azure Function App settings to override in production.
 
 ---
 

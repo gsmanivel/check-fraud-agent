@@ -39,6 +39,7 @@
 - `handlers/tier2/sk_agent.py` — Semantic Kernel 3-phase process, returns `{"engine": "semantic_kernel", ...}`
 - Both engines must return the same output contract: `decision`, `fraud_pattern`, `reasoning`, `confidence_score`, `engine`, `tool_calls`, `iterations`
 - Switch engine via `TIER2_ENGINE=native` or `TIER2_ENGINE=sk` — no code changes
+- Azure OpenAI API version is read from `AZURE_OPENAI_API_VERSION` (default `2024-10-21`) — never hard-code it in engine files
 
 ### Comments
 - No comments explaining what code does — well-named identifiers do that

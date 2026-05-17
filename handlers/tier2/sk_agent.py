@@ -164,7 +164,7 @@ async def _investigation_step(payload: dict, context: dict, start_time: float) -
         deployment_name=os.environ["AZURE_OPENAI_DEPLOYMENT"],
         endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         api_key=os.environ["AZURE_OPENAI_KEY"],
-        api_version="2024-08-01-preview",
+        api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
     ))
     kernel.add_plugin(FraudInvestigationPlugin(payload), plugin_name="fraud")
 
