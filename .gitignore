@@ -26,6 +26,7 @@ deploy.zip
 .pytest_cache/
 .coverage
 htmlcov/
+tests/eval/reports/
 
 # OS
 .DS_Store

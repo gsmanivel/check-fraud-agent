@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "description": "Labeled Tier-2 cases for the agent eval harness. Each case is what arrives at Tier-2 after Tier-1 escalation. Expand this file with new fraud patterns as they emerge.",
+  "cases": [
+    {
+      "id": "structuring_classic",
+      "description": "Account has 4 prior near-CTR checks in 24h; current check is also near CTR. Classic structuring.",
+      "payload": {
+        "id": "eval-structuring-001",
+        "account_number": "7857221324",
+        "customer_name": "Ashley Hill",
+        "payee_name": "Global Ventures LLC",
+        "amount": 9200.00,
+        "bank_name": "Wells Fargo",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.98
+        },
+        "tier1_risk_score": 45,
+        "tier1_indicators": ["amount_near_ctr_threshold", "cumulative_amount_near_ctr_24h"]
+      },
+      "expected": {
+        "decision_in": ["escalate", "reject"],
+        "fraud_pattern_in": ["structuring"],
+        "must_call_tools": ["customer_lookup", "velocity_check"],
+        "indicator_keywords": ["structuring", "ctr", "velocity"]
+      }
+    },
+    {
+      "id": "synthetic_identity_with_kyc_gap",
+      "description": "Patricia Adams: synthetic_identity_risk=true, kyc not verified, 4 linked accounts. Newly opened (2026-01).",
+      "payload": {
+        "id": "eval-synthetic-001",
+        "account_number": "9190197115",
+        "customer_name": "Patricia Adams",
+        "payee_name": "Sunrise Consulting",
+        "amount": 3500.00,
+        "bank_name": "Bank of America",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.97
+        },
+        "tier1_risk_score": 70,
+        "tier1_indicators": ["synthetic_identity_flag", "kyc_not_verified", "flag_synthetic_identity_suspected"]
+      },
+      "expected": {
+        "decision_in": ["escalate", "reject"],
+        "fraud_pattern_in": ["synthetic_identity"],
+        "must_call_tools": ["customer_lookup"],
+        "indicator_keywords": ["synthetic", "kyc", "identity"]
+      }
+    },
+    {
+      "id": "new_account_large_amount",
+      "description": "Linda Allen: account opened 2026-02-27, $12k check. Triggers new_account_large_amount only.",
+      "payload": {
+        "id": "eval-newacct-001",
+        "account_number": "7803990970",
+        "customer_name": "Linda Allen",
+        "payee_name": "Apex Holdings",
+        "amount": 12000.00,
+        "bank_name": "US Bank",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.96
+        },
+        "tier1_risk_score": 40,
+        "tier1_indicators": ["new_account_large_amount", "large_amount_check"]
+      },
+      "expected": {
+        "decision_in": ["approve", "escalate"],
+        "fraud_pattern_in": ["structuring", "synthetic_identity", null, "unknown"],
+        "must_call_tools": ["customer_lookup"],
+        "indicator_keywords": []
+      }
+    },
+    {
+      "id": "account_not_found",
+      "description": "Unknown account number. Agent cannot retrieve customer profile. Should escalate.",
+      "payload": {
+        "id": "eval-noacct-001",
+        "account_number": "9999999999",
+        "customer_name": "Unknown Person",
+        "payee_name": "Test Payee",
+        "amount": 500.00,
+        "bank_name": "Unknown Bank",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.92
+        },
+        "tier1_risk_score": 60,
+        "tier1_indicators": ["account_not_found"]
+      },
+      "expected": {
+        "decision_in": ["escalate", "reject"],
+        "fraud_pattern_in": ["unknown", "synthetic_identity", null],
+        "must_call_tools": ["customer_lookup"],
+        "indicator_keywords": []
+      }
+    },
+    {
+      "id": "synthetic_identity_perez_ring",
+      "description": "Anthony Perez: synthetic_identity_risk, kyc_not_verified, 4 linked accounts (ring includes Patricia Adams). New account.",
+      "payload": {
+        "id": "eval-ring-001",
+        "account_number": "6237376063",
+        "customer_name": "Anthony Perez",
+        "payee_name": "Summit Capital Partners",
+        "amount": 2500.00,
+        "bank_name": "Chase",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_compatibility": 0.97
+        },
+        "tier1_risk_score": 70,
+        "tier1_indicators": ["synthetic_identity_flag", "kyc_not_verified", "flag_synthetic_identity_suspected"]
+      },
+      "expected": {
+        "decision_in": ["escalate", "reject"],
+        "fraud_pattern_in": ["synthetic_identity"],
+        "must_call_tools": ["customer_lookup"],
+        "indicator_keywords": ["synthetic", "linked", "ring", "identity"]
+      }
+    },
+    {
+      "id": "suspicious_payee_cash",
+      "description": "Clean account but payee is literally 'CASH' for $2500. Suspicious payee pattern.",
+      "payload": {
+        "id": "eval-cash-001",
+        "account_number": "1478163327",
+        "customer_name": "David Mitchell",
+        "payee_name": "CASH",
+        "amount": 2500.00,
+        "bank_name": "Chase",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.96
+        },
+        "tier1_risk_score": 30,
+        "tier1_indicators": []
+      },
+      "expected": {
+        "decision_in": ["escalate", "reject"],
+        "fraud_pattern_in": ["unknown", "structuring", null],
+        "must_call_tools": ["customer_lookup", "payee_verify"],
+        "indicator_keywords": ["cash", "payee", "suspicious"]
+      }
+    },
+    {
+      "id": "borderline_clean_business",
+      "description": "Established account, normal amount, legitimate-looking payee. Tier-1 borderline. Should approve.",
+      "payload": {
+        "id": "eval-clean-001",
+        "account_number": "1478163327",
+        "customer_name": "David Mitchell",
+        "payee_name": "Office Depot",
+        "amount": 4200.00,
+        "bank_name": "Chase",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.99
+        },
+        "tier1_risk_score": 30,
+        "tier1_indicators": []
+      },
+      "expected": {
+        "decision_in": ["approve"],
+        "fraud_pattern_in": [null, "unknown"],
+        "must_call_tools": ["customer_lookup"],
+        "indicator_keywords": []
+      }
+    },
+    {
+      "id": "high_velocity_5plus",
+      "description": "Same Ashley Hill account but smaller amount. Velocity tool will still show 4 prior near-CTR.",
+      "payload": {
+        "id": "eval-velocity-001",
+        "account_number": "7857221324",
+        "customer_name": "Ashley Hill",
+        "payee_name": "Quick Cash LLC",
+        "amount": 6500.00,
+        "bank_name": "Wells Fargo",
+        "submission_date": "2026-05-17T13:00:00Z",
+        "extracted_fields": {
+          "micr_valid": true,
+          "amount_mismatch": false,
+          "payee_match": true,
+          "alteration_detected": false,
+          "signature_present": true,
+          "raw_ocr_confidence": 0.98
+        },
+        "tier1_risk_score": 35,
+        "tier1_indicators": ["elevated_velocity_3plus_24h"]
+      },
+      "expected": {
+        "decision_in": ["escalate", "reject"],
+        "fraud_pattern_in": ["structuring"],
+        "must_call_tools": ["customer_lookup", "velocity_check"],
+        "indicator_keywords": ["velocity", "structuring", "pattern"]
+      }
+    }
+  ]
+}

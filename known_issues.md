@@ -153,16 +153,22 @@ If `name` doesn't match any branch in `_exec_tool`, the function returns `None`,
 
 ---
 
-### H7. No agent evaluation harness
-**Files:** [tests/](tests/), entire project
+### H7. No agent evaluation harness ✅ INITIAL FRAMEWORK 2026-05-17
+**Files:** [tests/eval/](tests/eval/), [.github/workflows/eval.yml](.github/workflows/eval.yml)
 
-Unit tests exist for Tier-1 rules but **zero tests for the AI agent's decision quality**. This is the single biggest gap for an "agentic" application.
+**Resolution (framework v1):**
+- [tests/eval/golden_set.json](tests/eval/golden_set.json): 8 labeled cases covering structuring, synthetic identity (single + ring), new-account-large, account-not-found, suspicious payee, high-velocity, and one clean control.
+- [tests/eval/fixtures.py](tests/eval/fixtures.py): canned `CUSTOMERS`, `VELOCITY_DATA`, `FRAUD_CASES`; `install()` monkeypatches both Tier-2 engines so the LLM calls go to real Azure OpenAI but tool outputs are deterministic — eval results don't drift with Cosmos state.
+- [tests/eval/run_eval.py](tests/eval/run_eval.py): CLI runner with per-case scoring (decision, fraud_pattern, must-call tools, indicator keywords), engine selection (`--engine native|sk|both`), accuracy threshold (`--min-accuracy`), JSON report output.
+- [tests/eval/test_eval_smoke.py](tests/eval/test_eval_smoke.py): 5 framework tests (no LLM) that gate on golden-set schema, fixture wiring, and scoring logic.
+- [.github/workflows/eval.yml](.github/workflows/eval.yml): manual `workflow_dispatch` trigger (avoids burning OpenAI tokens on every PR). Uploads reports as artifacts (30-day retention).
 
-**Fix:** Industry standard:
-- A **golden eval set** (50–500 labeled checks) in `tests/eval/`
-- Run via **`azure-ai-evaluation`** SDK or **promptflow-evals** in CI on every prompt change
-- Track metrics: decision accuracy, false-positive rate, fraud-pattern precision, tool-call efficiency, latency p95
-- Block PRs that regress on the eval set
+**Still TODO (deferred):**
+- Expand golden set to 50–100 labeled cases
+- Migrate scoring to `azure-ai-evaluation` SDK evaluators
+- Token-cost aggregation per run
+- Gate on eval in PR CI once baseline is stable
+- Adversarial / prompt-injection eval cases (Content Safety covers the runtime side via N4)
 
 ---
 
