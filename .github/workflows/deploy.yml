@@ -46,6 +46,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -53,23 +58,23 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Create deployment package
-        run: zip -r deploy.zip host.json requirements.txt function_app.py handlers/ dashboard.html
+      # Install Python dependencies into .python_packages so they ship inside the
+      # zip. Avoids Oryx server-side build — Oryx has been hanging at "starting"
+      # for 40+ min with no logs. Local install is reliable and ~2 min in CI.
+      - name: Install Python dependencies into package
+        run: |
+          pip install --upgrade pip
+          pip install --target=".python_packages/lib/site-packages" -r requirements.txt
 
-      # Flex Consumption requires the Azure Functions Action (or `az functionapp deploy`).
-      # The legacy `az functionapp deployment source config-zip` writes only Kudu state
-      # blobs on Flex and never updates released-package.zip, leaving the runtime on
-      # stale code while reporting success.
-      #
-      # remote-build: true triggers Oryx to run `pip install -r requirements.txt`
-      # server-side during deployment. Without it, the package ships source-only and
-      # function_app.py imports fail at startup → zero registered functions.
+      - name: Create deployment package
+        run: zip -rq deploy.zip host.json requirements.txt function_app.py handlers/ dashboard.html .python_packages
+
       - name: Deploy to Azure Functions (Flex Consumption)
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: deploy.zip
-          remote-build: true
+          remote-build: false
 
       - name: Smoke test deployed function
         run: |
