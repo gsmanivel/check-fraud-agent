@@ -1,8 +1,10 @@
 import os, json, time, logging
 from openai import AzureOpenAI
+from pydantic import ValidationError
 
 from handlers.shared.cosmos import get_cosmos_container, get_customer
 from handlers.shared.content_safety import check_prompt_safety
+from handlers.shared.models import FraudDecision, FraudDecisionLLMOutput
 from handlers.shared.velocity import query_velocity
 
 logger = logging.getLogger(__name__)
@@ -60,16 +62,14 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
     )
     if not shield["safe"]:
         logger.warning(f"Prompt shield rejected check {payload.get('id')}: {shield['reason']}")
-        return {
-            "decision":         "escalate",
-            "risk_score":       80,
-            "fraud_pattern":    "unknown",
-            "fraud_indicators": ["prompt_injection_detected"],
-            "reasoning":        f"Content Safety Prompt Shield flagged input: {shield['reason']}",
-            "tool_calls_made":  [],
-            "iterations":       0,
-            "engine":           "native",
-        }
+        return FraudDecision(
+            decision="escalate",
+            risk_score=80,
+            fraud_pattern="unknown",
+            fraud_indicators=["prompt_injection_detected"],
+            reasoning=f"Content Safety Prompt Shield flagged input: {shield['reason']}",
+            engine="native",
+        ).model_dump()
 
     messages        = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_message}]
     tool_calls_made = []
@@ -81,16 +81,43 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
             logger.warning(f"Native agent timeout for {payload.get('id')} after {iterations} iterations")
             break
         iterations += 1
-        response = client.chat.completions.create(
+        response = client.chat.completions.parse(
             model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
             messages=messages, tools=TOOLS, tool_choice="auto",
+            response_format=FraudDecisionLLMOutput,
             temperature=0.1, max_tokens=2000
         )
         message = response.choices[0].message
+
+        if getattr(message, "refusal", None):
+            logger.warning(f"Native agent: model refused for {payload.get('id')}: {message.refusal}")
+            return FraudDecision(
+                decision="escalate",
+                risk_score=70,
+                fraud_pattern="unknown",
+                fraud_indicators=["model_refusal"],
+                reasoning=f"Model refused: {message.refusal}",
+                tool_calls_made=tool_calls_made,
+                iterations=iterations,
+                engine="native",
+            ).model_dump()
+
+        if message.parsed is not None:
+            out: FraudDecisionLLMOutput = message.parsed
+            return FraudDecision(
+                decision=out.decision,
+                risk_score=out.risk_score,
+                fraud_pattern=out.fraud_pattern,
+                fraud_indicators=out.fraud_indicators,
+                reasoning=out.reasoning,
+                tool_calls_made=tool_calls_made,
+                iterations=iterations,
+                engine="native",
+            ).model_dump()
+
         if not message.tool_calls:
-            result = _parse_decision(message.content, tool_calls_made, iterations)
-            result["engine"] = "native"
-            return result
+            return _parse_decision(message.content, tool_calls_made, iterations)
+
         messages.append({"role": "assistant", "content": message.content, "tool_calls": [
             {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
             for tc in message.tool_calls
@@ -105,17 +132,25 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
 
     if escalation:
-        return {
-            "decision": "escalate", "risk_score": escalation.get("risk_score", 60),
-            "fraud_pattern": escalation.get("suspected_pattern", "unknown"),
-            "fraud_indicators": [], "reasoning": escalation.get("reason", ""),
-            "tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "native"
-        }
-    return {
-        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
-        "fraud_indicators": ["max_iterations_reached"], "reasoning": "Agent reached iteration limit",
-        "tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "native"
-    }
+        return FraudDecision(
+            decision="escalate",
+            risk_score=escalation.get("risk_score", 60),
+            fraud_pattern=escalation.get("suspected_pattern", "unknown"),
+            reasoning=escalation.get("reason", ""),
+            tool_calls_made=tool_calls_made,
+            iterations=iterations,
+            engine="native",
+        ).model_dump()
+    return FraudDecision(
+        decision="escalate",
+        risk_score=50,
+        fraud_pattern="unknown",
+        fraud_indicators=["max_iterations_reached"],
+        reasoning="Agent reached iteration limit",
+        tool_calls_made=tool_calls_made,
+        iterations=iterations,
+        engine="native",
+    ).model_dump()
 
 
 def _exec_tool(name: str, args: dict, payload: dict) -> dict:
@@ -167,11 +202,17 @@ def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dic
             d = json.loads(content[start:end])
             d["tool_calls_made"] = tool_calls_made
             d["iterations"]      = iterations
-            return d
-    except Exception:
-        pass
-    return {
-        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
-        "fraud_indicators": ["parse_error"], "reasoning": content or "Parse error",
-        "tool_calls_made": tool_calls_made, "iterations": iterations
-    }
+            d["engine"]          = "native"
+            return FraudDecision(**d).model_dump()
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.warning(f"Native engine decision parse failed: {e}")
+    return FraudDecision(
+        decision="escalate",
+        risk_score=50,
+        fraud_pattern="unknown",
+        fraud_indicators=["parse_error"],
+        reasoning=content or "Parse error",
+        tool_calls_made=tool_calls_made,
+        iterations=iterations,
+        engine="native",
+    ).model_dump()

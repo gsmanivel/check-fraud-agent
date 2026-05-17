@@ -35,10 +35,12 @@
 
 ### Tier-2 Engines
 - `handlers/tier2/__init__.py` — async dispatcher, reads `TIER2_ENGINE` env var
-- `handlers/tier2/native.py` — hand-rolled ReAct loop, returns `{"engine": "native", ...}`
+- `handlers/tier2/native.py` — hand-rolled ReAct loop on `chat.completions.parse()`, returns `{"engine": "native", ...}`
 - `handlers/tier2/sk_agent.py` — Semantic Kernel 3-phase process, returns `{"engine": "semantic_kernel", ...}`
-- Both engines must return the same output contract: `decision`, `fraud_pattern`, `reasoning`, `confidence_score`, `engine`, `tool_calls`, `iterations`
-- Switch engine via `TIER2_ENGINE=native` or `TIER2_ENGINE=sk` — no code changes
+- `handlers/tier2/azure_agent.py` — Azure AI Foundry Agent Service (managed runtime), returns `{"engine": "azure_agent", ...}`
+- All engines must return the same output contract defined by `FraudDecision` in [handlers/shared/models.py](handlers/shared/models.py): `decision`, `risk_score`, `fraud_pattern`, `fraud_indicators`, `reasoning`, `tool_calls_made`, `iterations`, `engine`. The dispatcher validates the result via `FraudDecision(**raw)` — engines that drift on field names or value ranges will fail there, not silently downstream.
+- Switch engine via `TIER2_ENGINE=native`, `sk`, or `azure_agent` — no code changes
+- Foundry agent (`azure_agent`) authenticates via `DefaultAzureCredential` only — no API-key fallback. Agent is created lazily on first call and cached by name (`FraudInvestigationAgent`); delete it in the Foundry portal to force recreation after changing `SYSTEM_PROMPT` or tools
 - Azure OpenAI API version is read from `AZURE_OPENAI_API_VERSION` (default `2024-10-21`) — never hard-code it in engine files
 
 ### Comments

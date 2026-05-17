@@ -176,9 +176,10 @@ python scripts/seed_cosmos.py
 
 | Variable | Purpose |
 |---|---|
-| `TIER2_ENGINE` | `native` or `sk` — selects the Tier-2 agent engine |
+| `TIER2_ENGINE` | `native`, `sk`, or `azure_agent` — selects the Tier-2 agent engine |
 | `AGENT_TIMEOUT_SECONDS` | Max seconds for Tier-2 agent (default 30) |
-| `AGENT_MAX_ITERATIONS` | Max ReAct loop iterations (default 6) |
+| `AGENT_MAX_ITERATIONS` | Max ReAct loop iterations (default 6, applies to `native`/`sk`) |
+| `AZURE_AI_AGENTS_ENDPOINT` | Foundry endpoint for `azure_agent` engine — falls back to `AZURE_OPENAI_ENDPOINT` if unset. Requires Entra ID auth (`DefaultAzureCredential`); `az login` locally or system-assigned MI in Azure with the **Azure AI User** role. |
 | `COSMOS_CHECKS_CONTAINER` | Cosmos container name for checks |
 | `COSMOS_CUSTOMERS_CONTAINER` | Cosmos container name for customers |
 | `SERVICE_BUS_CONNECTION_STRING` | Service Bus connection |

@@ -20,14 +20,17 @@ No redeployment required.
 """
 
 import os, json, time, logging
+from pydantic import ValidationError
 from semantic_kernel import Kernel
 from semantic_kernel.agents import ChatCompletionAgent
-from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
+from semantic_kernel.connectors.ai.function_choice_behavior import FunctionChoiceBehavior
+from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion, OpenAIChatPromptExecutionSettings
 from semantic_kernel.contents import ChatHistory, FunctionCallContent
-from semantic_kernel.functions import kernel_function
+from semantic_kernel.functions import KernelArguments, kernel_function
 
 from handlers.shared.content_safety import check_prompt_safety
 from handlers.shared.cosmos import get_cosmos_container, get_customer
+from handlers.shared.models import FraudDecision, FraudDecisionLLMOutput
 from handlers.shared.velocity import query_velocity
 
 logger = logging.getLogger(__name__)
@@ -169,10 +172,17 @@ async def _investigation_step(payload: dict, context: dict, start_time: float) -
     ))
     kernel.add_plugin(FraudInvestigationPlugin(payload), plugin_name="fraud")
 
+    settings = OpenAIChatPromptExecutionSettings(
+        response_format=FraudDecisionLLMOutput,
+        function_choice_behavior=FunctionChoiceBehavior.Auto(),
+        temperature=0.1,
+        max_tokens=2000,
+    )
     agent = ChatCompletionAgent(
         kernel=kernel,
         name="FraudInvestigationAgent",
         instructions=SYSTEM_PROMPT,
+        arguments=KernelArguments(settings=settings),
     )
 
     ef = payload.get("extracted_fields", {})
@@ -227,19 +237,19 @@ def _verdict_step(raw_content: str, tool_calls_made: list, iterations: int) -> d
         if start >= 0 and end > start:
             d = json.loads(raw_content[start:end])
             d.update({"tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "semantic_kernel"})
-            return d
-    except Exception:
-        pass
-    return {
-        "decision":        "escalate",
-        "risk_score":      50,
-        "fraud_pattern":   "unknown",
-        "fraud_indicators": ["sk_parse_error"],
-        "reasoning":       raw_content or "No response from SK agent",
-        "tool_calls_made": tool_calls_made,
-        "iterations":      iterations,
-        "engine":          "semantic_kernel",
-    }
+            return FraudDecision(**d).model_dump()
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.warning(f"[SK·VerdictStep] decision parse failed: {e}")
+    return FraudDecision(
+        decision="escalate",
+        risk_score=50,
+        fraud_pattern="unknown",
+        fraud_indicators=["sk_parse_error"],
+        reasoning=raw_content or "No response from SK agent",
+        tool_calls_made=tool_calls_made,
+        iterations=iterations,
+        engine="semantic_kernel",
+    ).model_dump()
 
 
 # ---------------------------------------------------------------------------
@@ -264,16 +274,14 @@ async def run_agent_sk(payload: dict, start_time: float) -> dict:
     )
     if not shield["safe"]:
         logger.warning(f"[SK] Prompt shield rejected check {check_id}: {shield['reason']}")
-        return {
-            "decision":         "escalate",
-            "risk_score":       80,
-            "fraud_pattern":    "unknown",
-            "fraud_indicators": ["prompt_injection_detected"],
-            "reasoning":        f"Content Safety Prompt Shield flagged input: {shield['reason']}",
-            "tool_calls_made":  [],
-            "iterations":       0,
-            "engine":           "semantic_kernel",
-        }
+        return FraudDecision(
+            decision="escalate",
+            risk_score=80,
+            fraud_pattern="unknown",
+            fraud_indicators=["prompt_injection_detected"],
+            reasoning=f"Content Safety Prompt Shield flagged input: {shield['reason']}",
+            engine="semantic_kernel",
+        ).model_dump()
 
     context = _context_step(payload)
     logger.info(f"[SK·ContextStep] complete — pre_signals={context['pre_signals']}")

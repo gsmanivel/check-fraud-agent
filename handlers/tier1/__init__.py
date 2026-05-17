@@ -6,6 +6,8 @@ from handlers.shared.cosmos import get_customer, upsert_check, write_audit_log
 from handlers.shared.servicebus import enqueue_message
 from handlers.shared.utils import confidence_gate, get_account_age_days
 from handlers.shared.velocity import query_velocity
+from handlers.shared.models import CheckPayload
+from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 bp = df.Blueprint()
@@ -18,15 +20,24 @@ bp = df.Blueprint()
 )
 def tier1_function(msg: func.ServiceBusMessage):
     start    = time.time()
-    payload  = json.loads(msg.get_body().decode("utf-8"))
-    check_id = payload.get("id")
+    try:
+        raw_payload = json.loads(msg.get_body().decode("utf-8"))
+        check = CheckPayload(**raw_payload)
+    except ValidationError as e:
+        logger.error(f"Payload validation failed: {e}", exc_info=True)
+        raise
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON payload: {e}", exc_info=True)
+        raise
+
+    check_id = check.id
     logger.info(f"Tier 1 processing: {check_id}")
     fraud_indicators = []
     checks_run       = {}
     risk_score       = 0
     try:
         for check_fn in [_t1_micr, _t1_amount, _t1_account, _t1_velocity]:
-            result = check_fn(payload)
+            result = check_fn(check)
             checks_run[result["name"]] = result
             risk_score += result["risk_contribution"]
             fraud_indicators.extend(result["indicators"])
@@ -34,13 +45,16 @@ def tier1_function(msg: func.ServiceBusMessage):
         decision   = confidence_gate(risk_score)
         ms         = int((time.time() - start) * 1000)
         logger.info(f"Check {check_id} | Score:{risk_score} | {decision} | {ms}ms")
-        payload.update({
-            "risk_score":       risk_score,
-            "fraud_indicators": fraud_indicators,
-            "processing_tier":  "tier1",
-            "fraud_decision":   decision,
-            "status":           decision if decision != "escalate" else "escalated"
-        })
+        
+        check.risk_score = risk_score
+        check.fraud_indicators = fraud_indicators
+        check.processing_tier = "tier1"
+        check.fraud_decision = decision
+        check.status = decision if decision != "escalate" else "escalated"
+        
+        # Serialize back to dict for Cosmos/ServiceBus
+        payload = check.model_dump(exclude_none=True)
+        
         upsert_check(payload)
         write_audit_log(check_id, "tier1", decision, {"risk_score": risk_score, "ms": ms})
         if decision == "escalate":
@@ -52,46 +66,49 @@ def tier1_function(msg: func.ServiceBusMessage):
         raise
 
 
-def _t1_micr(payload: dict) -> dict:
+def _t1_micr(check: CheckPayload) -> dict:
     indicators, risk = [], 0
-    ef = payload.get("extracted_fields", {})
-    if not ef.get("micr_valid", True):           indicators.append("invalid_micr_checksum");         risk += 40
-    if ef.get("amount_mismatch", False):          indicators.append("amount_words_numeric_mismatch"); risk += 50
-    if not ef.get("payee_match", True):           indicators.append("payee_name_mismatch");           risk += 35
-    if ef.get("alteration_detected", False):      indicators.append("alteration_detected");           risk += 45
-    if not ef.get("signature_present", True):     indicators.append("missing_signature");             risk += 20
-    if ef.get("raw_ocr_confidence", 1.0) < 0.7:  indicators.append("low_ocr_confidence");            risk += 10
+    ef = check.extracted_fields
+    if ef:
+        if not ef.micr_valid:           indicators.append("invalid_micr_checksum");         risk += 40
+        if ef.amount_mismatch:          indicators.append("amount_words_numeric_mismatch"); risk += 50
+        if not ef.payee_match:           indicators.append("payee_name_mismatch");           risk += 35
+        if ef.alteration_detected:      indicators.append("alteration_detected");           risk += 45
+        if not ef.signature_present:     indicators.append("missing_signature");             risk += 20
+        if ef.raw_ocr_confidence < 0.7:  indicators.append("low_ocr_confidence");            risk += 10
+    else:
+        indicators.append("missing_extracted_fields"); risk += 50
     return {"name": "micr_validation", "passed": risk == 0, "risk_contribution": risk, "indicators": indicators}
 
 
-def _t1_amount(payload: dict) -> dict:
+def _t1_amount(check: CheckPayload) -> dict:
     indicators, risk = [], 0
-    amount = payload.get("amount", 0)
+    amount = check.amount
     if 8500 <= amount <= 9999:  indicators.append("amount_near_ctr_threshold"); risk += 20
     if amount > 50000:          indicators.append("large_amount_check");        risk += 15
     if amount <= 0:             indicators.append("invalid_amount");            risk += 50
     return {"name": "amount_validation", "passed": risk == 0, "risk_contribution": risk, "indicators": indicators}
 
 
-def _t1_account(payload: dict) -> dict:
+def _t1_account(check: CheckPayload) -> dict:
     indicators, risk = [], 0
-    customer = get_customer(payload.get("account_number", ""))
+    customer = get_customer(check.account_number)
     if not customer:
         return {"name": "account_check", "passed": False, "risk_contribution": 60, "indicators": ["account_not_found"]}
     if customer.get("account_status") != "active":        indicators.append("account_not_active");      risk += 50
     if customer.get("synthetic_identity_risk", False):    indicators.append("synthetic_identity_flag"); risk += 40
     if not customer.get("kyc_verified", True):            indicators.append("kyc_not_verified");        risk += 30
     age = get_account_age_days(customer.get("opened_date", ""))
-    if age < 90 and payload.get("amount", 0) > 5000:     indicators.append("new_account_large_amount");risk += 25
+    if age < 90 and check.amount > 5000:     indicators.append("new_account_large_amount");risk += 25
     for flag in customer.get("flags", []):                indicators.append(f"flag_{flag}");            risk += 20
     return {"name": "account_check", "passed": risk == 0, "risk_contribution": risk, "indicators": indicators}
 
 
-def _t1_velocity(payload: dict) -> dict:
+def _t1_velocity(check: CheckPayload) -> dict:
     indicators, risk = [], 0
-    data      = query_velocity(payload.get("account_number", ""), days_back=1, exclude_check_id=payload.get("id", ""))
+    data      = query_velocity(check.account_number, days_back=1, exclude_check_id=check.id)
     count_24h = data["count"]
-    total_24h = data["total"] + payload.get("amount", 0)
+    total_24h = data["total"] + check.amount
     if count_24h >= 5:    indicators.append("high_velocity_5plus_24h");        risk += 35
     elif count_24h >= 3:  indicators.append("elevated_velocity_3plus_24h");    risk += 15
     if total_24h >= 9000: indicators.append("cumulative_amount_near_ctr_24h"); risk += 30
