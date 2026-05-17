@@ -26,6 +26,7 @@ from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import ChatHistory, FunctionCallContent
 from semantic_kernel.functions import kernel_function
 
+from handlers.shared.content_safety import check_prompt_safety
 from handlers.shared.cosmos import get_cosmos_container, get_customer
 from handlers.shared.velocity import query_velocity
 
@@ -248,6 +249,31 @@ def _verdict_step(raw_content: str, tool_calls_made: list, iterations: int) -> d
 async def run_agent_sk(payload: dict, start_time: float) -> dict:
     check_id = payload.get("id")
     logger.info(f"[SK] Starting 3-phase investigation for {check_id}")
+
+    shield_input = (
+        f"payee={payload.get('payee_name')} bank={payload.get('bank_name')} "
+        f"memo={payload.get('memo')}"
+    )
+    shield = check_prompt_safety(
+        shield_input,
+        documents=[
+            str(payload.get("payee_name") or ""),
+            str(payload.get("bank_name") or ""),
+            str(payload.get("memo") or ""),
+        ],
+    )
+    if not shield["safe"]:
+        logger.warning(f"[SK] Prompt shield rejected check {check_id}: {shield['reason']}")
+        return {
+            "decision":         "escalate",
+            "risk_score":       80,
+            "fraud_pattern":    "unknown",
+            "fraud_indicators": ["prompt_injection_detected"],
+            "reasoning":        f"Content Safety Prompt Shield flagged input: {shield['reason']}",
+            "tool_calls_made":  [],
+            "iterations":       0,
+            "engine":           "semantic_kernel",
+        }
 
     context = _context_step(payload)
     logger.info(f"[SK·ContextStep] complete — pre_signals={context['pre_signals']}")

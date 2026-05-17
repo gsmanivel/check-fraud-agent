@@ -2,6 +2,7 @@ import os, json, time, logging
 from openai import AzureOpenAI
 
 from handlers.shared.cosmos import get_cosmos_container, get_customer
+from handlers.shared.content_safety import check_prompt_safety
 from handlers.shared.velocity import query_velocity
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,27 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
         f"indicators={', '.join(payload.get('tier1_indicators', [])) or 'None'}\n"
         f"Investigate and provide your final JSON decision."
     )
+    shield = check_prompt_safety(
+        user_message,
+        documents=[
+            str(payload.get("payee_name") or ""),
+            str(payload.get("bank_name") or ""),
+            str(payload.get("memo") or ""),
+        ],
+    )
+    if not shield["safe"]:
+        logger.warning(f"Prompt shield rejected check {payload.get('id')}: {shield['reason']}")
+        return {
+            "decision":         "escalate",
+            "risk_score":       80,
+            "fraud_pattern":    "unknown",
+            "fraud_indicators": ["prompt_injection_detected"],
+            "reasoning":        f"Content Safety Prompt Shield flagged input: {shield['reason']}",
+            "tool_calls_made":  [],
+            "iterations":       0,
+            "engine":           "native",
+        }
+
     messages        = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_message}]
     tool_calls_made = []
     iterations      = 0

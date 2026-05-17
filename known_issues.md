@@ -304,10 +304,16 @@ Currently all resources are provisioned manually per [README.md](README.md).
 
 ---
 
-### N4. Add Azure AI Content Safety
-- **Prompt Shields** on the user message into Tier-2
-- Optional: **image moderation** on uploaded check images
-- **Output filtering** on agent reasoning before it lands in Cosmos
+### N4. Add Azure AI Content Safety ✅ PARTIAL FIX 2026-05-17
+**Files:** [handlers/shared/content_safety.py](handlers/shared/content_safety.py), [handlers/tier2/native.py](handlers/tier2/native.py), [handlers/tier2/sk_agent.py](handlers/tier2/sk_agent.py)
+
+**Resolution:**
+- New `handlers/shared/content_safety.py`: thin wrapper around the Prompt Shields preview endpoint (`/contentsafety/text:shieldPrompt`), called via the stable SDK's `send_request` transport so we get auth/retry without a beta package dependency.
+- **Feature-flagged**: when `CONTENT_SAFETY_ENDPOINT` is unset, the wrapper returns `{safe: True, skipped: True}` and the engines proceed normally. Safe to land before a Content Safety resource is provisioned.
+- Both Tier-2 engines call the shield **before** the LLM. On `attackDetected`, they short-circuit with `decision=escalate`, `risk_score=80`, `fraud_indicators=["prompt_injection_detected"]` — the check still gets human review, but the agent never sees the malicious input.
+- `CONTENT_SAFETY_FAIL_MODE=open|closed` (default `open`): controls behavior when the shield API errors out. Open = let the check proceed (current default during rollout); closed = escalate.
+
+**Still TODO (deferred):** image moderation on check uploads; output filtering on agent reasoning before Cosmos writes. Both lower priority than input-side shielding.
 
 ---
 
