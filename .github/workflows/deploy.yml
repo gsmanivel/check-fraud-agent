@@ -60,11 +60,16 @@ jobs:
       # The legacy `az functionapp deployment source config-zip` writes only Kudu state
       # blobs on Flex and never updates released-package.zip, leaving the runtime on
       # stale code while reporting success.
+      #
+      # remote-build: true triggers Oryx to run `pip install -r requirements.txt`
+      # server-side during deployment. Without it, the package ships source-only and
+      # function_app.py imports fail at startup → zero registered functions.
       - name: Deploy to Azure Functions (Flex Consumption)
         uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: deploy.zip
+          remote-build: true
 
       - name: Smoke test deployed function
         run: |
