@@ -139,4 +139,4 @@ push to main
 | `GET /api/checks/{id}/status` | Status of a specific check |
 | `POST /api/checks/{id}/decision` | Submit analyst approve / reject decision |
 
-**Base URL:** `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net`
+**Base URL:** `https://checkfraudagent.azurewebsites.net`

@@ -39,7 +39,7 @@ python scripts/run_scenarios.py --all
 
 After submitting, verify results:
 - **Cosmos DB** — `checks` container, filter by the returned `check_id`
-- **Dashboard** — `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net/api/dashboard`
+- **Dashboard** — `https://checkfraudagent.azurewebsites.net/api/dashboard`
 - **Status API** — `GET /api/checks/{check_id}/status`
 
 ---
@@ -570,7 +570,7 @@ No Cosmos record created. No Service Bus message sent.
 
 ```bash
 # Invalid decision value
-curl -X POST https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net/api/checks/{check_id}/decision \
+curl -X POST https://checkfraudagent.azurewebsites.net/api/checks/{check_id}/decision \
   -H "Content-Type: application/json" \
   -d '{"decision": "maybe"}'
 # Expected: 400 — "decision must be approve or reject"

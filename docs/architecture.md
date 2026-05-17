@@ -117,4 +117,4 @@ CI/CD via GitHub Actions on push to `main`:
 3. Zip `host.json requirements.txt function_app.py handlers/ dashboard.html`
 4. Deploy via `az functionapp deployment source config-zip`
 
-Live URL: `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net`
+Live URL: `https://checkfraudagent.azurewebsites.net`

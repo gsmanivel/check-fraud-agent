@@ -39,7 +39,8 @@
       "Bash(.venv/bin/python -m pytest tests/ -v)",
       "Bash(az cognitiveservices *)",
       "Bash(az role *)",
-      "Bash(az ad *)"
+      "Bash(az ad *)",
+      "Bash(az appservice *)"
     ]
   },
   "hooks": {

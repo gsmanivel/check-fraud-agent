@@ -13,7 +13,7 @@ concurrency:
 
 env:
   AZURE_FUNCTIONAPP_NAME: checkfraudagent
-  AZURE_FUNCTIONAPP_HOSTNAME: checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net
+  AZURE_FUNCTIONAPP_HOSTNAME: checkfraudagent.azurewebsites.net
   AZURE_RESOURCE_GROUP: manman-rg
   PYTHON_VERSION: "3.11"
 

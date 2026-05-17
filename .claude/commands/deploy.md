@@ -7,12 +7,12 @@ Steps performed:
 2. Deploy to Azure using az functionapp deployment source config-zip
 3. Show deployment status
 
-Function App: checkfraudagent-gphqemb0gtfubzgz
+Function App: checkfraudagent
 Resource Group: manman-rg
 
 Execute the following commands in sequence:
 ```
 zip -r deploy.zip . -x@.funcignore
-az functionapp deployment source config-zip --resource-group manman-rg --name checkfraudagent-gphqemb0gtfubzgz --src deploy.zip
+az functionapp deployment source config-zip --resource-group manman-rg --name checkfraudagent --src deploy.zip
 rm deploy.zip
 ```

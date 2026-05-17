@@ -19,7 +19,7 @@ for k, v in settings.items():
 
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 
-BASE_URL    = "https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net"
+BASE_URL    = "https://checkfraudagent.azurewebsites.net"
 TIER1_QUEUE = settings["TIER1_QUEUE_NAME"]
 SB_CONN     = settings["SERVICE_BUS_CONNECTION_STRING"]
 

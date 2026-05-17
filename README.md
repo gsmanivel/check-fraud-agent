@@ -217,8 +217,8 @@ CI/CD via GitHub Actions on push to `main`:
 
 | Resource | URL |
 |---|---|
-| Function App | `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net` |
-| Analyst Dashboard | `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net/api/dashboard` |
+| Function App | `https://checkfraudagent.azurewebsites.net` |
+| Analyst Dashboard | `https://checkfraudagent.azurewebsites.net/api/dashboard` |
 
 > Note: Flex Consumption plan — the URL is **not** `checkfraudagent.azurewebsites.net`.
 

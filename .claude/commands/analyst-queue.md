@@ -4,5 +4,5 @@ Shows checks in the Tier-3 analyst queue with their status, fraud decision, and 
 
 Execute the following command:
 ```
-curl -s "https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net/api/checks/queue" | python3 -m json.tool
+curl -s "https://checkfraudagent.azurewebsites.net/api/checks/queue" | python3 -m json.tool
 ```
