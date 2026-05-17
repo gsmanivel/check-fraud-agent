@@ -1,25 +1,8 @@
 # Check Fraud Agent — Claude Code Instructions
 
-## Project Overview
-Azure Functions v2 Python fraud detection pipeline with 3 processing tiers:
-- **Tier-1**: Rule-based scoring engine (MICR, amount, velocity, account checks)
-- **Tier-2**: AI investigation agent — dual engine: `native` (ReAct loop) or `sk` (Semantic Kernel)
-- **Tier-3**: Human analyst queue with HTTP endpoints and dashboard
-
-Hosted on Azure Flex Consumption Plan. Event-driven via Azure Service Bus queues.
-
-## Project Structure
-```
-handlers/
-  blob_trigger/   ← OCR extraction via Document Intelligence, enqueues to Tier-1
-  tier1/          ← Rule engine, scores checks, escalates/approves/rejects
-  tier2/          ← AI agent dispatcher (__init__.py), native.py, sk_agent.py
-  tier3/          ← Analyst intake, HTTP endpoints, dashboard
-  shared/         ← cosmos.py, servicebus.py, velocity.py, utils.py
-scripts/          ← Manual dev tools (never deployed)
-tests/            ← Automated pytest suite (runs in CI)
-docs/             ← Architecture, tech stack, test scenarios, code walkthrough
-```
+> **Project orientation lives in [README.md](README.md)** — architecture, tier responsibilities, env vars, deployment, scenarios, and project structure. Read it for context.
+>
+> This file is **rules and conventions for code edits**. Anything below overrides default behavior when modifying this codebase.
 
 ## Code Conventions
 
@@ -60,43 +43,6 @@ docs/             ← Architecture, tech stack, test scenarios, code walkthrough
 ### Comments
 - No comments explaining what code does — well-named identifiers do that
 - Only add a comment when the WHY is non-obvious (hidden constraint, workaround, invariant)
-
-## Environment
-
-### Local Development
-- Config: `local.settings.json` (never commit — in .gitignore)
-- Run locally: `func start`
-- Default engine: `TIER2_ENGINE=native`
-
-### Azure Deployment
-- Function App: `checkfraudagent-gphqemb0gtfubzgz`
-- Resource group: `manman-rg`, Region: `eastus2-01`
-- Deploy: `az functionapp deployment source config-zip`
-- Base URL: `https://checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net`
-
-### Key Environment Variables
-| Variable | Purpose |
-|---|---|
-| `TIER2_ENGINE` | `native` or `sk` |
-| `AGENT_TIMEOUT_SECONDS` | Max seconds for Tier-2 agent (default 120) |
-| `MAX_AGENT_ITERATIONS` | Max ReAct loop iterations (default 10) |
-| `COSMOS_CHECKS_CONTAINER` | Cosmos container name for checks |
-| `COSMOS_CUSTOMERS_CONTAINER` | Cosmos container name for customers |
-| `SERVICE_BUS_CONNECTION_STRING` | Service Bus connection |
-
-## Test Scenarios
-Run with: `python scripts/run_scenarios.py --scenario X --engine native/sk --poll`
-
-| Scenario | Account | Expected Path |
-|---|---|---|
-| A | 4645120421 (Steven Wilson) | Tier-1 APPROVE |
-| B | 1478163327 (David Mitchell) | Tier-1 REJECT |
-| C | 7857221324 (Ashley Hill) | Tier-1 → Tier-2 (structuring) |
-| D | 9190197115 (Patricia Adams) | Tier-1 → Tier-2 (synthetic identity) |
-| E | 7803990970 (Linda Allen) | Tier-1 → Tier-2 (new account + large) |
-| F | 6237376063 (Anthony Perez) | Tier-1 → Tier-2 → Tier-3 (analyst) |
-| G | 1478163327 (David Mitchell) | Engine comparison (run both engines) |
-| X1 | 9999999999 | Account not found edge case |
 
 ## Do Not
 - String-interpolate Cosmos queries
