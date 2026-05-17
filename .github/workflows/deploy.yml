@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# Serialize deploys against the same Function App. A new push cancels any
+# in-flight deploy job — Azure's Kudu deployment lock can't recover cleanly
+# if two `az functionapp deployment source config-zip` calls land in parallel.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   AZURE_FUNCTIONAPP_NAME: checkfraudagent
   AZURE_FUNCTIONAPP_HOSTNAME: checkfraudagent-gphqemb0gtfubzgz.eastus2-01.azurewebsites.net
