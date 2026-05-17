@@ -70,11 +70,12 @@ For the ambiguous middle, a GPT-4o agent acts like a junior fraud analyst. It ru
 
 The agent emits a structured JSON decision: `approve` / `reject` / `escalate` with `risk_score`, `fraud_pattern`, `fraud_indicators`, and a human-readable `reasoning` field.
 
-**Dual engine** — pick at runtime via `TIER2_ENGINE` env var:
-- `native` ([handlers/tier2/native.py](handlers/tier2/native.py)) — hand-rolled ReAct loop directly on the Azure OpenAI SDK
-- `sk` ([handlers/tier2/sk_agent.py](handlers/tier2/sk_agent.py)) — Microsoft Semantic Kernel 3-phase process
+**Three engines** — pick at runtime via `TIER2_ENGINE` env var:
+- `native` ([handlers/tier2/native.py](handlers/tier2/native.py)) — hand-rolled ReAct loop directly on the Azure OpenAI SDK. Full control over every iteration; best for learning what the framework hides.
+- `sk` ([handlers/tier2/sk_agent.py](handlers/tier2/sk_agent.py)) — Microsoft Semantic Kernel 3-phase process. Portable across model providers.
+- `azure_agent` ([handlers/tier2/azure_agent.py](handlers/tier2/azure_agent.py)) — Azure AI Foundry Agent Service (managed runtime). Server-side agent + threads + tool registry; Microsoft-recommended path for production Azure agents.
 
-Both engines return the same output contract, making A/B benchmarking trivial.
+All three return the same `FraudDecision` contract ([handlers/shared/models.py](handlers/shared/models.py)) — the dispatcher validates the output, so swapping engines never breaks downstream code.
 
 ### Tier 3 — Human Analyst Review ([handlers/tier3/__init__.py](handlers/tier3/__init__.py))
 
@@ -87,6 +88,60 @@ Only the truly uncertain cases reach a human. The analyst dashboard ([dashboard.
 - All fraud indicators split by tier
 
 The analyst clicks Approve or Reject. The decision is logged with the analyst ID and any notes via `POST /api/checks/{id}/decision`.
+
+---
+
+## Why Three Tiers? Design Rationale
+
+A fair question when reading this design: *why not put all the logic in Tier 1?* Most of what Tier 2 does is implementable as deterministic code — Cosmos queries, set intersections, keyword scans. The choice to split into three tiers is deliberate, and worth justifying.
+
+### Why Tier 1 exists
+
+A deterministic rule engine on every check, before any AI is invoked. Three reasons:
+
+1. **Throughput and cost.** A rule engine runs in ~200ms and costs effectively nothing. A GPT-4o agent runs in ~30s and costs ~$0.01–0.05 per call. At thousands of checks per day, sending everything through the LLM is wasteful — and most checks are obviously fine (clean OCR, known customer, normal amount) or obviously bad (closed account, $0, invalid MICR). For those, deterministic rules are not just faster but **strictly better** — they're explainable to auditors line-by-line and produce identical decisions on identical inputs.
+2. **Regulatory defensibility.** BSA/AML and CTR reporting expect deterministic decision paths for the clear-cut cases. "We approved this because the score was 12 and our threshold is 25" is far easier to defend than "the model decided."
+3. **Failure isolation.** If Azure OpenAI is down or rate-limited, Tier 1 still serves 80–90% of traffic. The AI is the *enrichment layer*, not the critical path.
+
+Tier 1's job is to **separate the obvious from the ambiguous**. It approves the clearly clean and rejects the clearly bad, and only escalates the middle — typically 10–20% of traffic.
+
+### Why Tier 2 exists
+
+You could implement Tier 2 as more Tier-1 rules — its tool calls (customer lookup, velocity, knowledge-base match) are all deterministic. So why route through an LLM at all?
+
+| What Tier 2 does | Could Tier 1 do it? | Why Tier 2 anyway |
+|---|---|---|
+| Fetch customer profile, velocity, signature, fraud-KB match | ✅ Yes, mechanically | Tier 2 fetches **conditionally** — runs only the tools the case calls for, instead of every probe on every check |
+| Combine signals into a score | ✅ Additive sum works for obvious cases | Tier 2 handles **conjunctions** (`A ∧ B ∧ C only when D`) and **contextual weighting** (`account_age=80d` is risky with $9.5K, harmless with $200) — rules collapse under this complexity around ~200 rules |
+| Classify the fraud pattern | ⚠️ Possible with a decision tree | Tier 2 picks a **label** (`structuring`, `synthetic_identity`, etc.) with confidence, even on novel cases that are only 60% of a known pattern |
+| Produce an audit narrative | ❌ Only templates | Tier 2 emits free-text `reasoning` that a compliance auditor can actually read: *"Multiple sub-$10K transactions across 30 days, all to different payees, on an account opened 32 days ago with partial KYC."* |
+
+The combined value isn't any single capability — it's **conditional investigation + cross-signal synthesis + classification + auditable narrative**, in one component that you can iterate on by changing a prompt instead of redeploying code.
+
+### Why Tier 3 exists
+
+Some cases genuinely don't have enough signal to decide automatically — they're novel schemes, edge cases, or low-confidence calls. Routing those to a human:
+
+- Keeps the high-volume happy paths automated
+- Preserves a human safety net for the cases that matter most
+- Generates labeled training data for improving Tiers 1 and 2 over time
+
+The dashboard ([dashboard.html](dashboard.html)) shows the analyst everything: Tier-1 score, Tier-2 reasoning, the tools the agent invoked and what they returned, and the original image. The analyst is making a verification call, not starting from scratch.
+
+### When you'd skip a tier
+
+This three-tier design assumes meaningful volume and a mix of obvious/ambiguous cases. Variations worth knowing:
+
+- **Low volume (< 1,000 checks/day):** Skip Tier 2 and route the ambiguous middle straight to humans. Tier 2 costs aren't justified.
+- **Stable fraud landscape:** If patterns don't evolve, rules in Tier 1 may be sufficient.
+- **Hard latency requirements:** If sub-second is mandatory, Tier 2 (~30s) is out — investigate async post-decision instead.
+- **Strict deterministic-decisioning regulation:** Some jurisdictions don't allow AI in the decision path for financial actions. Tier 2 becomes advisory-only (analyst sees its reasoning but the decision must come from a human or a rule).
+
+### The mental model
+
+> **Tier 1 is a sieve. Tier 2 is an analyst. Tier 3 is a human.**
+>
+> The sieve catches the obvious. The analyst handles the ambiguous middle that doesn't fit any single rule cleanly. The human owns the genuinely uncertain — and the cases where the analyst disagrees with itself.
 
 ---
 
