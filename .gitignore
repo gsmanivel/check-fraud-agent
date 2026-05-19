@@ -19,7 +19,6 @@ deploy.zip
 *.env
 
 # IDE
-.vscode/settings.json
 .idea/
 
 # Test artifacts
