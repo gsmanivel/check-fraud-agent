@@ -4,22 +4,22 @@ from datetime import datetime, timezone
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeDocumentRequest, DocumentSignatureType
 from azure.core.credentials import AzureKeyCredential
+import azure.durable_functions as df
 
 from handlers.shared.cosmos import upsert_check
 from handlers.shared.servicebus import enqueue_message
 from handlers.shared.utils import validate_micr
 
-DOC_INTELLIGENCE_MODEL = os.environ.get("DOCUMENT_INTELLIGENCE_MODEL", "prebuilt-check.us")
+DOC_INTELLIGENCE_MODEL = os.environ.get("DOCUMENT_INTELLIGENCE_MODEL", "prebuilt-layout")
 
 logger = logging.getLogger(__name__)
-bp = func.Blueprint()
+bp = df.Blueprint()
 
 
 @bp.blob_trigger(
     arg_name="checkblob",
     path="check-images/{name}",
     connection="BLOB_CONNECTION_STRING",
-    source="EventGrid",
 )
 def blob_trigger(checkblob: func.InputStream):
     blob_name = checkblob.name
