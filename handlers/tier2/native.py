@@ -1,25 +1,21 @@
 import os, json, time, logging
 from openai import AzureOpenAI
-from pydantic import ValidationError
 
 from handlers.shared.cosmos import get_cosmos_container, get_customer
-from handlers.shared.content_safety import check_prompt_safety
-from handlers.shared.models import FraudDecision, FraudDecisionLLMOutput
 from handlers.shared.velocity import query_velocity
 
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS  = int(os.environ.get("AGENT_MAX_ITERATIONS", "6"))
 TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "30"))
-OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21")
 
 TOOLS = [
-    {"type": "function", "function": {"name": "customer_lookup",     "description": "Look up full customer profile.",                                         "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}},                                                                    "required": ["account_number"]}}},
-    {"type": "function", "function": {"name": "velocity_check",      "description": "Check transaction frequency and totals for structuring detection.",       "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}, "days_back": {"type": "integer", "default": 30}},              "required": ["account_number"]}}},
-    {"type": "function", "function": {"name": "signature_check",     "description": "Validate check signature.",                                              "parameters": {"type": "object", "properties": {"check_id": {"type": "string"}, "account_number": {"type": "string"}},                              "required": ["check_id", "account_number"]}}},
-    {"type": "function", "function": {"name": "fraud_pattern_search","description": "Search fraud pattern knowledge base.",                                   "parameters": {"type": "object", "properties": {"indicators": {"type": "array", "items": {"type": "string"}}, "account_number": {"type": "string"}},"required": ["indicators"]}}},
-    {"type": "function", "function": {"name": "payee_verify",        "description": "Verify if payee is known or suspicious.",                                "parameters": {"type": "object", "properties": {"payee_name": {"type": "string"}, "amount": {"type": "number"}},                                   "required": ["payee_name"]}}},
-    {"type": "function", "function": {"name": "escalate_to_human",   "description": "Escalate to human analyst. Use only after exhausting other tools.",      "parameters": {"type": "object", "properties": {"reason": {"type": "string"}, "suspected_pattern": {"type": "string", "enum": ["structuring", "altered_check", "synthetic_identity", "unknown"]}, "risk_score": {"type": "integer"}}, "required": ["reason", "suspected_pattern", "risk_score"]}}},
+    {"type": "function", "function": {"name": "customer_lookup",      "description": "Look up full customer profile.",                                          "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}},                                                                                                                                                                  "required": ["account_number"]}}},
+    {"type": "function", "function": {"name": "velocity_check",       "description": "Check transaction frequency and totals for structuring detection.",      "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}, "days_back": {"type": "integer", "default": 30}},                                                                                                            "required": ["account_number"]}}},
+    {"type": "function", "function": {"name": "signature_check",      "description": "Validate check signature.",                                              "parameters": {"type": "object", "properties": {"check_id": {"type": "string"}, "account_number": {"type": "string"}},                                                                                                                            "required": ["check_id", "account_number"]}}},
+    {"type": "function", "function": {"name": "fraud_pattern_search", "description": "Search fraud pattern knowledge base.",                                   "parameters": {"type": "object", "properties": {"indicators": {"type": "array", "items": {"type": "string"}}, "account_number": {"type": "string"}},                                                                                              "required": ["indicators"]}}},
+    {"type": "function", "function": {"name": "payee_verify",         "description": "Verify if payee is known or suspicious.",                                "parameters": {"type": "object", "properties": {"payee_name": {"type": "string"}, "amount": {"type": "number"}},                                                                                                                                  "required": ["payee_name"]}}},
+    {"type": "function", "function": {"name": "escalate_to_human",    "description": "Escalate to human analyst. Use only after exhausting other tools.",      "parameters": {"type": "object", "properties": {"reason": {"type": "string"}, "suspected_pattern": {"type": "string", "enum": ["structuring", "altered_check", "synthetic_identity", "unknown"]}, "risk_score": {"type": "integer"}}, "required": ["reason", "suspected_pattern", "risk_score"]}}},
 ]
 
 SYSTEM_PROMPT = """You are an expert check fraud detection agent.
@@ -38,7 +34,7 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
     client = AzureOpenAI(
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         api_key=os.environ["AZURE_OPENAI_KEY"],
-        api_version=OPENAI_API_VERSION,
+        api_version="2024-08-01-preview"
     )
     ef = payload.get("extracted_fields", {})
     user_message = (
@@ -52,25 +48,6 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
         f"indicators={', '.join(payload.get('tier1_indicators', [])) or 'None'}\n"
         f"Investigate and provide your final JSON decision."
     )
-    shield = check_prompt_safety(
-        user_message,
-        documents=[
-            str(payload.get("payee_name") or ""),
-            str(payload.get("bank_name") or ""),
-            str(payload.get("memo") or ""),
-        ],
-    )
-    if not shield["safe"]:
-        logger.warning(f"Prompt shield rejected check {payload.get('id')}: {shield['reason']}")
-        return FraudDecision(
-            decision="escalate",
-            risk_score=80,
-            fraud_pattern="unknown",
-            fraud_indicators=["prompt_injection_detected"],
-            reasoning=f"Content Safety Prompt Shield flagged input: {shield['reason']}",
-            engine="native",
-        ).model_dump()
-
     messages        = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_message}]
     tool_calls_made = []
     iterations      = 0
@@ -81,43 +58,16 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
             logger.warning(f"Native agent timeout for {payload.get('id')} after {iterations} iterations")
             break
         iterations += 1
-        response = client.chat.completions.parse(
+        response = client.chat.completions.create(
             model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
             messages=messages, tools=TOOLS, tool_choice="auto",
-            response_format=FraudDecisionLLMOutput,
             temperature=0.1, max_tokens=2000
         )
         message = response.choices[0].message
-
-        if getattr(message, "refusal", None):
-            logger.warning(f"Native agent: model refused for {payload.get('id')}: {message.refusal}")
-            return FraudDecision(
-                decision="escalate",
-                risk_score=70,
-                fraud_pattern="unknown",
-                fraud_indicators=["model_refusal"],
-                reasoning=f"Model refused: {message.refusal}",
-                tool_calls_made=tool_calls_made,
-                iterations=iterations,
-                engine="native",
-            ).model_dump()
-
-        if message.parsed is not None:
-            out: FraudDecisionLLMOutput = message.parsed
-            return FraudDecision(
-                decision=out.decision,
-                risk_score=out.risk_score,
-                fraud_pattern=out.fraud_pattern,
-                fraud_indicators=out.fraud_indicators,
-                reasoning=out.reasoning,
-                tool_calls_made=tool_calls_made,
-                iterations=iterations,
-                engine="native",
-            ).model_dump()
-
         if not message.tool_calls:
-            return _parse_decision(message.content, tool_calls_made, iterations)
-
+            result = _parse_decision(message.content, tool_calls_made, iterations)
+            result["engine"] = "native"
+            return result
         messages.append({"role": "assistant", "content": message.content, "tool_calls": [
             {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
             for tc in message.tool_calls
@@ -132,25 +82,17 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
 
     if escalation:
-        return FraudDecision(
-            decision="escalate",
-            risk_score=escalation.get("risk_score", 60),
-            fraud_pattern=escalation.get("suspected_pattern", "unknown"),
-            reasoning=escalation.get("reason", ""),
-            tool_calls_made=tool_calls_made,
-            iterations=iterations,
-            engine="native",
-        ).model_dump()
-    return FraudDecision(
-        decision="escalate",
-        risk_score=50,
-        fraud_pattern="unknown",
-        fraud_indicators=["max_iterations_reached"],
-        reasoning="Agent reached iteration limit",
-        tool_calls_made=tool_calls_made,
-        iterations=iterations,
-        engine="native",
-    ).model_dump()
+        return {
+            "decision": "escalate", "risk_score": escalation.get("risk_score", 60),
+            "fraud_pattern": escalation.get("suspected_pattern", "unknown"),
+            "fraud_indicators": [], "reasoning": escalation.get("reason", ""),
+            "tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "native"
+        }
+    return {
+        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
+        "fraud_indicators": ["max_iterations_reached"], "reasoning": "Agent reached iteration limit",
+        "tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "native"
+    }
 
 
 def _exec_tool(name: str, args: dict, payload: dict) -> dict:
@@ -174,24 +116,40 @@ def _exec_tool(name: str, args: dict, payload: dict) -> dict:
             sig = ef.get("signature_present", False)
             return {"signature_present": sig, "signature_match": sig, "confidence": 0.85 if sig else 0.0}
         elif name == "fraud_pattern_search":
-            container  = get_cosmos_container("fraud_cases")
-            all_cases  = list(container.read_all_items())
-            indicators = set(args.get("indicators", []))
-            matches    = []
+            container = get_cosmos_container("fraud_cases")
+            all_cases = list(container.read_all_items())
+            indicator_set = set(i.lower() for i in args.get("indicators", []))
+            matches       = []
             for case in all_cases:
-                overlap = set(case.get("agent_signals", [])).intersection(indicators)
+                case_signals = set(s.lower() for s in case.get("agent_signals", []))
+                overlap      = case_signals.intersection(indicator_set)
                 if overlap:
-                    matches.append({"pattern": case.get("pattern"), "description": case.get("description"), "matching_signals": list(overlap), "match_confidence": len(overlap) / max(len(indicators), 1)})
+                    matches.append({
+                        "pattern": case.get("pattern"), "description": case.get("description"),
+                        "matching_signals": list(overlap),
+                        "match_confidence": len(overlap) / max(len(indicator_set), 1)
+                    })
             matches.sort(key=lambda x: x["match_confidence"], reverse=True)
             return {"matches_found": len(matches), "top_matches": matches[:3]}
         elif name == "payee_verify":
-            payee      = args.get("payee_name", "")
-            suspicious = any(kw in payee.lower() for kw in ["cash", "bearer", "atm", "wire", "anonymous"])
-            return {"payee_name": payee, "suspicious": suspicious, "risk_assessment": "suspicious" if suspicious else "low_risk"}
+            payee = args.get("payee_name", "").lower()
+            suspicious_keywords = ["cash", "bearer", "atm", "wire", "anonymous"]
+            is_suspicious = any(k in payee for k in suspicious_keywords)
+            return {
+                "payee_name": args.get("payee_name"), "suspicious": is_suspicious,
+                "risk_assessment": "high_risk" if is_suspicious else "low_risk"
+            }
         elif name == "escalate_to_human":
-            return {"status": "escalation_queued", "reason": args.get("reason")}
+            return {
+                "status": "escalation_queued",
+                "reason": args.get("reason"),
+                "suspected_pattern": args.get("suspected_pattern"),
+                "risk_score": args.get("risk_score")
+            }
     except Exception as e:
+        logger.error(f"Tool {name} failed: {e}", exc_info=True)
         return {"error": str(e)}
+    return {"error": "unknown_tool"}
 
 
 def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dict:
@@ -199,20 +157,14 @@ def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dic
         start = content.find("{")
         end   = content.rfind("}") + 1
         if start >= 0 and end > start:
-            d = json.loads(content[start:end])
-            d["tool_calls_made"] = tool_calls_made
-            d["iterations"]      = iterations
-            d["engine"]          = "native"
-            return FraudDecision(**d).model_dump()
-    except (json.JSONDecodeError, ValidationError) as e:
-        logger.warning(f"Native engine decision parse failed: {e}")
-    return FraudDecision(
-        decision="escalate",
-        risk_score=50,
-        fraud_pattern="unknown",
-        fraud_indicators=["parse_error"],
-        reasoning=content or "Parse error",
-        tool_calls_made=tool_calls_made,
-        iterations=iterations,
-        engine="native",
-    ).model_dump()
+            data = json.loads(content[start:end])
+            data["tool_calls_made"] = tool_calls_made
+            data["iterations"]      = iterations
+            return data
+    except Exception as e:
+        logger.warning(f"Could not parse decision JSON: {e}")
+    return {
+        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
+        "fraud_indicators": ["parse_error"], "reasoning": content or "No content",
+        "tool_calls_made": tool_calls_made, "iterations": iterations
+    }
