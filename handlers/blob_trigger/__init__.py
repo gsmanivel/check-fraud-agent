@@ -18,7 +18,7 @@ bp = func.Blueprint()
 @bp.blob_trigger(
     arg_name="checkblob",
     path="check-images/{name}",
-    connection="AzureWebJobsStorage",
+    connection="BLOB_CONNECTION_STRING",
     source="EventGrid",
 )
 def blob_trigger(checkblob: func.InputStream):
