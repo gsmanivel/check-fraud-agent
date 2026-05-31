@@ -218,14 +218,15 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
 
         iterations += 1
 
-        response = client.chat.completions.create(
-            model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            temperature=0.1,
-            max_tokens=2000,
-        )
+        for attempt in range(3):
+            try:
+                response = client.chat.completions.create(...)
+                break
+            except Exception as e:
+                if "429" in str(e) and attempt < 2:
+                    time.sleep(10 * (attempt + 1))
+                    continue
+                raise
 
         message = response.choices[0].message
 
