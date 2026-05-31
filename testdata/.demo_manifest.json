@@ -1,0 +1,51 @@
+[
+  {
+    "scenario": "SC1 \u2014 Auto Approve",
+    "expected": "approve",
+    "check_id": "441ccd67-752d-4b6a-9ff0-50ff8cd7752f",
+    "amount": 875.0,
+    "account": "1478163327"
+  },
+  {
+    "scenario": "SC2 \u2014 Auto Reject",
+    "expected": "reject",
+    "check_id": "7f5750d2-89c9-4446-a4e5-5acaf21fc3ac",
+    "amount": 14000.0,
+    "account": "8106906538"
+  },
+  {
+    "scenario": "SC3 \u2014 Tier 2 Agent (Unknown Payee)",
+    "expected": "escalate",
+    "check_id": "8c2d1742-6b6e-4405-b225-bf6e4f98559a",
+    "amount": 3200.0,
+    "account": "4645120421"
+  },
+  {
+    "scenario": "SC4 \u2014 Auto Reject (Synthetic Identity)",
+    "expected": "reject",
+    "check_id": "390fd38e-1c13-4fa6-91d3-967073cd35fc",
+    "amount": 9500.0,
+    "account": "6237376063"
+  },
+  {
+    "scenario": "SC5 \u2014 Tier 2 Agent (Altered Check)",
+    "expected": "escalate",
+    "check_id": "701fcdd6-9f8a-461e-9f14-2dfbda950d3c",
+    "amount": 3500.0,
+    "account": "1478163327"
+  },
+  {
+    "scenario": "SC6 \u2014 Auto Reject (Synthetic Identity)",
+    "expected": "reject",
+    "check_id": "49c08507-e7ba-4150-a5c9-7f550341dc55",
+    "amount": 2500.0,
+    "account": "6237376063"
+  },
+  {
+    "scenario": "SC7 \u2014 Tier 3 Human Review (Money Mule)",
+    "expected": "escalate",
+    "check_id": "da7c57fb-00dc-499e-9175-718c75c29d66",
+    "amount": 4000.0,
+    "account": "3303082117"
+  }
+]

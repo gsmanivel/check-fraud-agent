@@ -1,9 +1,11 @@
 """
-Inject test payloads directly to the Tier 1 Service Bus queue,
-bypassing blob trigger and Document Intelligence.
+inject_and_cleanup.py — cleans up stale data then injects test payloads.
 
-Run after seeding Cosmos and starting the Function App:
-    python testData/inject_test_payloads.py
+Scenarios are loaded from testData/scenarios.json — edit that file
+to change account numbers, amounts, fraud signals etc.
+
+Run before every demo:
+    python testData/inject_and_cleanup.py
 """
 import json
 import os
@@ -22,57 +24,51 @@ with open(_settings_path) as _f:
         os.environ.setdefault(_k, str(_v))
 
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
+from azure.cosmos import CosmosClient
 
+cosmos = CosmosClient(
+    url=os.environ["COSMOS_ENDPOINT"],
+    credential=os.environ["COSMOS_KEY"],
+)
+db = cosmos.get_database_client(os.environ["COSMOS_DATABASE"])
+
+
+# ── helpers ────────────────────────────────────────────────────────────────
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def build_payload(
-    account_number: str,
-    routing_number: str,
-    amount: float,
-    payee_name: str,
-    bank_name: str,
-    customer_name: str,
-    micr_valid: bool = True,
-    amount_mismatch: bool = False,
-    signature_present: bool = True,
-    alteration_detected: bool = False,
-    raw_ocr_confidence: float = 0.95,
-    amount_words: str = "",
-    memo: str = "",
-    check_number: str = "1001",
-) -> dict:
+def build_payload(scenario: dict) -> dict:
     check_id = str(uuid.uuid4())
     return {
         "id":              check_id,
-        "check_number":    check_number,
-        "account_number":  account_number,
-        "routing_number":  routing_number,
-        "customer_name":   customer_name,
-        "payee_name":      payee_name,
-        "amount":          amount,
-        "memo":            memo,
+        "check_number":    scenario["check_number"],
+        "account_number":  scenario["account_number"],
+        "routing_number":  scenario["routing_number"],
+        "customer_name":   scenario["customer_name"],
+        "payee_name":      scenario["payee_name"],
+        "amount":          scenario["amount"],
+        "memo":            scenario.get("memo", ""),
         "issue_date":      now_iso(),
         "submission_date": now_iso(),
-        "bank_name":       bank_name,
+        "bank_name":       scenario["bank_name"],
         "check_image_url": f"https://test/{check_id}.jpg",
         "blob_path":       f"test/{check_id}.jpg",
         "extracted_fields": {
-            "amount_numeric":      amount,
-            "amount_words":        amount_words or f"{amount} dollars",
-            "payee_name":          payee_name,
+            "amount_numeric":      scenario["amount"],
+            "amount_words":        scenario.get("amount_words", ""),
+            "payee_name":          scenario["payee_name"],
             "payee_match":         True,
-            "micr_valid":          micr_valid,
-            "signature_present":   signature_present,
-            "amount_mismatch":     amount_mismatch,
-            "alteration_detected": alteration_detected,
-            "raw_ocr_confidence":  raw_ocr_confidence,
-            "account_number":      account_number,
-            "routing_number":      routing_number,
-            "bank_name":           bank_name,
-            "memo":                memo,
+            "micr_valid":          scenario.get("micr_valid", True),
+            "signature_present":   scenario.get("signature_present", True),
+            "amount_mismatch":     scenario.get("amount_mismatch", False),
+            "alteration_detected": scenario.get("alteration_detected", False),
+            "raw_ocr_confidence":  scenario.get("raw_ocr_confidence", 0.95),
+            "account_number":      scenario["account_number"],
+            "routing_number":      scenario["routing_number"],
+            "bank_name":           scenario["bank_name"],
+            "memo":                scenario.get("memo", ""),
         },
         "status":     "pending",
         "created_at": now_iso(),
@@ -80,137 +76,119 @@ def build_payload(
     }
 
 
-# Test scenarios
-SCENARIOS = [
-    {
-        "name": "SC1 — Auto Approve (clean check)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="021000021",
-            amount=875.00,
-            payee_name="Melissa Moore",
-            bank_name="JPMORGAN CHASE BANK",
-            customer_name="David Mitchell",
-            amount_words="Eight Hundred Seventy-Five and 00/100",
-            memo="Rent - May 2026",
-            check_number="1340",
-        ),
-    },
-    {
-        "name": "SC2 — Auto Reject (invalid MICR + amount mismatch + alteration)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="111111111",
-            amount=14000.00,
-            payee_name="Quick Cash LLC",
-            bank_name="BANK OF AMERICA",
-            customer_name="David Mitchell",
-            micr_valid=False,
-            amount_mismatch=True,
-            alteration_detected=True,
-            raw_ocr_confidence=0.45,
-            amount_words="Eight Thousand",
-            memo="Services",
-            check_number="4849",
-        ),
-    },
-    {
-        "name": "SC3 — Escalate to Tier 2 (low OCR + unknown payee)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="021000021",
-            amount=3200.00,
-            payee_name="Pacific Northwest Consulting LLC",
-            bank_name="JPMORGAN CHASE BANK",
-            customer_name="David Mitchell",
-            raw_ocr_confidence=0.65,
-            amount_words="Three Thousand Two Hundred and 00/100",
-            memo="Consulting Invoice #847",
-            check_number="1042",
-        ),
-    },
-    {
-        "name": "SC4 — Structuring (just below CTR threshold)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="026009593",
-            amount=9500.00,
-            payee_name="Global Co",
-            bank_name="CITIBANK",
-            customer_name="David Mitchell",
-            amount_words="Nine Thousand Five Hundred and 00/100",
-            memo="Invoice",
-            check_number="6720",
-        ),
-    },
-    {
-        "name": "SC5 — Altered Check (heavy smudge)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="021000021",
-            amount=12000.00,
-            payee_name="Miller Supplies Inc",
-            bank_name="US BANK",
-            customer_name="David Mitchell",
-            alteration_detected=True,
-            raw_ocr_confidence=0.55,
-            amount_words="Twelve Thousand and 00/100",
-            memo="Equipment",
-            check_number="2200",
-        ),
-    },
-    {
-        "name": "SC6 — Synthetic Identity (fraud from customer record)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="026009593",
-            amount=2500.00,
-            payee_name="Cash",
-            bank_name="TD BANK",
-            customer_name="Anthony Perez",
-            amount_words="Two Thousand Five Hundred and 00/100",
-            check_number="1001",
-        ),
-    },
-    {
-        "name": "SC7 — Money Mule (amount mismatch)",
-        "payload": build_payload(
-            account_number="1478163327",
-            routing_number="021000021",
-            amount=4000.00,
-            payee_name="Wire Transfer Services LLC",
-            bank_name="PNC BANK",
-            customer_name="David Mitchell",
-            amount_mismatch=True,
-            amount_words="Two Thousand",
-            memo="Transfer",
-            check_number="3300",
-        ),
-    },
-]
+# ── load scenarios ─────────────────────────────────────────────────────────
+
+def load_scenarios() -> list:
+    scenarios_path = os.path.join(os.path.dirname(__file__), "scenarios.json")
+    if not os.path.exists(scenarios_path):
+        print(f"ERROR: scenarios.json not found at {scenarios_path}")
+        sys.exit(1)
+    with open(scenarios_path) as f:
+        return json.load(f)
 
 
-def main():
+# ── Step 1: Clean Cosmos containers ────────────────────────────────────────
+
+def cleanup_cosmos():
+    print("\n[1/3] Cleaning Cosmos DB...")
+    for container_name, pk in [
+        (os.environ["COSMOS_CHECKS_CONTAINER"], "/id"),
+        (os.environ["COSMOS_AUDIT_CONTAINER"],  "/check_id"),
+    ]:
+        try:
+            db.delete_container(container_name)
+            print(f"      Deleted:   {container_name}")
+        except Exception:
+            pass
+        db.create_container(
+            id=container_name,
+            partition_key={"paths": [pk], "kind": "Hash"},
+        )
+        print(f"      Recreated: {container_name}")
+    print("      Done.")
+
+
+# ── Step 2: Drain Service Bus queues ───────────────────────────────────────
+
+def drain_queues():
+    print("\n[2/3] Draining Service Bus queues...")
+    conn_str = os.environ["SERVICE_BUS_CONNECTION_STRING"]
+    queues   = [
+        os.environ["TIER1_QUEUE_NAME"],
+        os.environ["TIER2_QUEUE_NAME"],
+        os.environ["TIER3_QUEUE_NAME"],
+    ]
+    with ServiceBusClient.from_connection_string(conn_str) as client:
+        for queue_name in queues:
+            drained = 0
+            try:
+                with client.get_queue_receiver(
+                    queue_name, max_wait_time=3,
+                ) as receiver:
+                    msgs = receiver.receive_messages(
+                        max_message_count=100, max_wait_time=3,
+                    )
+                    for msg in msgs:
+                        receiver.complete_message(msg)
+                        drained += 1
+            except Exception as e:
+                print(f"      Warning draining {queue_name}: {e}")
+            print(f"      {queue_name}: drained {drained} messages")
+    print("      Done.")
+
+
+# ── Step 3: Inject test payloads ───────────────────────────────────────────
+
+def inject_payloads(scenarios: list):
+    print(f"\n[3/3] Injecting {len(scenarios)} test payloads to Tier 1 queue...")
     conn_str   = os.environ["SERVICE_BUS_CONNECTION_STRING"]
     queue_name = os.environ["TIER1_QUEUE_NAME"]
-
-    print(f"Connecting to Service Bus queue: {queue_name}")
+    injected   = []
 
     with ServiceBusClient.from_connection_string(conn_str) as client:
         with client.get_queue_sender(queue_name) as sender:
-            for scenario in SCENARIOS:
-                payload = scenario["payload"]
+            for scenario in scenarios:
+                payload = build_payload(scenario)
                 msg     = ServiceBusMessage(json.dumps(payload))
                 sender.send_messages(msg)
+                injected.append({
+                    "scenario": scenario["name"],
+                    "expected": scenario["expected"],
+                    "check_id": payload["id"],
+                    "amount":   payload["amount"],
+                    "account":  payload["account_number"],
+                })
                 print(
-                    f"  Sent: {scenario['name']} | "
-                    f"check_id={payload['id']} | "
-                    f"amount=${payload['amount']:,.2f}"
+                    f"      ✅ {scenario['name']:<35} "
+                    f"account={payload['account_number']}  "
+                    f"check_id={payload['id'][:8]}..."
                 )
 
-    print(f"\nSent {len(SCENARIOS)} test payloads to {queue_name}")
-    print("Wait ~30-60 seconds, then check the dashboard:")
-    print("  curl -s https://checkfraudagent.azurewebsites.net/api/checks/queue")
+    manifest_path = os.path.join(os.path.dirname(__file__), ".demo_manifest.json")
+    with open(manifest_path, "w") as f:
+        json.dump(injected, f, indent=2)
+    print(f"\n      Manifest saved → {manifest_path}")
+
+
+# ── main ───────────────────────────────────────────────────────────────────
+
+def main():
+    print("=" * 65)
+    print("  Check Fraud Demo — Cleanup + Inject")
+    print("=" * 65)
+
+    scenarios = load_scenarios()
+    print(f"\n  Loaded {len(scenarios)} scenarios from scenarios.json")
+
+    cleanup_cosmos()
+    drain_queues()
+    inject_payloads(scenarios)
+
+    print("\n" + "=" * 65)
+    print("  Done. Pipeline is running.")
+    print("  Wait ~60s, then: python testData/check_status.py")
+    print("  Dashboard: https://checkfraudagent.azurewebsites.net/api/dashboard")
+    print("=" * 65)
 
 
 if __name__ == "__main__":
