@@ -3,7 +3,6 @@ import logging
 import os
 import time
 
-from azure.storage.blob import BlobServiceClient
 from openai import AzureOpenAI
 
 from handlers.shared.cosmos import get_cosmos_container, get_customer
@@ -121,7 +120,7 @@ TOOLS = [
     },
 ]
 
-# ── Default system prompt (fallback if blob read fails)
+#  Default system prompt (fallback if blob read fails)
 
 DEFAULT_SYSTEM_PROMPT = """You are an expert check fraud detection agent reviewing escalated checks.
 Tier 1 already auto-rejected clear fraud and auto-approved clean checks.
@@ -165,28 +164,20 @@ Always end with a JSON decision:
 }"""
 
 
-# ── System prompt loader
+#  System prompt loader
 
 def get_system_prompt() -> str:
-    """Load system prompt from Blob Storage. Falls back to DEFAULT_SYSTEM_PROMPT."""
-    try:
-        client = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
-        )
-        blob = client.get_blob_client(container="config", blob="tier2_prompt.txt")
-        prompt = blob.download_blob().readall().decode("utf-8").strip()
-        if prompt:
-            logger.info("Loaded system prompt from blob storage")
-            return prompt
-    except Exception as e:
-        logger.warning(f"Failed to load prompt from blob, using default: {e}")
+    prompt = os.environ.get("TIER2_SYSTEM_PROMPT", "").strip()
+    if prompt:
+        logger.info("Loaded system prompt from environment variable")
+        return prompt
     return DEFAULT_SYSTEM_PROMPT
 
 
 SYSTEM_PROMPT = get_system_prompt()
 
 
-# ── Main agent entry point 
+#  Main agent entry point 
 
 def run_agent_native(payload: dict, start_time: float) -> dict:
     client = AzureOpenAI(
@@ -303,7 +294,7 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
     }
 
 
-# ── Tool executor 
+#  Tool executor 
 
 def _exec_tool(name: str, args: dict, payload: dict) -> dict:
     try:
@@ -413,7 +404,7 @@ def _tool_escalate_to_human(args: dict) -> dict:
     }
 
 
-# ── Decision parser
+#  Decision parser
 
 def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dict:
     try:

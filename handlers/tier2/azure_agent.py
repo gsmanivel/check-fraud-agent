@@ -30,7 +30,6 @@ from typing import Optional
 
 from azure.ai.agents import AgentsClient
 from azure.ai.agents.models import AgentsResponseFormat, FunctionTool, ToolSet
-from azure.storage.blob import BlobServiceClient
 from azure.identity import DefaultAzureCredential
 from pydantic import ValidationError
 
@@ -43,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 AGENT_NAME = "FraudInvestigationAgent"
 
-# ── Default system prompt (fallback if blob read fails)
+#  Default system prompt (fallback if blob read fails)
 
 DEFAULT_SYSTEM_PROMPT = """You are an expert check fraud detection agent reviewing escalated checks.
 Tier 1 already auto-rejected clear fraud and auto-approved clean checks.
@@ -87,37 +86,29 @@ Always end with a JSON decision:
 }"""
 
 
-# ── System prompt loader
+#  System prompt loader
 
 def get_system_prompt() -> str:
-    """Load system prompt from Blob Storage. Falls back to DEFAULT_SYSTEM_PROMPT."""
-    try:
-        client = BlobServiceClient.from_connection_string(
-            os.environ["BLOB_CONNECTION_STRING"]
-        )
-        blob   = client.get_blob_client(container="config", blob="tier2_prompt.txt")
-        prompt = blob.download_blob().readall().decode("utf-8").strip()
-        if prompt:
-            logger.info("Loaded system prompt from blob storage")
-            return prompt
-    except Exception as e:
-        logger.warning(f"Failed to load prompt from blob, using default: {e}")
+    prompt = os.environ.get("TIER2_SYSTEM_PROMPT", "").strip()
+    if prompt:
+        logger.info("Loaded system prompt from environment variable")
+        return prompt
     return DEFAULT_SYSTEM_PROMPT
 
 
 SYSTEM_PROMPT = get_system_prompt()
 
-# ── Context var — carries payload into tool callables
+#  Context var — carries payload into tool callables
 
 _current_payload: contextvars.ContextVar[dict] = contextvars.ContextVar("azure_agent_payload")
 
-# ── Cached client and agent ID
+#  Cached client and agent ID
 
 _client:   Optional[AgentsClient] = None
 _agent_id: Optional[str]          = None
 
 
-# ── Client and agent helpers
+#  Client and agent helpers
 
 def _get_client() -> AgentsClient:
     global _client
@@ -171,7 +162,7 @@ def _get_or_create_agent(client: AgentsClient) -> str:
     return _agent_id
 
 
-# ── Tool callables
+#  Tool callables
 
 def customer_lookup(account_number: str) -> str:
     """Look up full customer profile and account standing by account number."""
@@ -261,7 +252,7 @@ def escalate_to_human(reason: str, suspected_pattern: str, risk_score: int) -> s
     })
 
 
-# ── Main agent entry point
+#  Main agent entry point
 
 async def run_agent_foundry(payload: dict, start_time: float) -> dict:
     check_id = payload.get("id")
@@ -332,7 +323,7 @@ async def run_agent_foundry(payload: dict, start_time: float) -> dict:
     return _verdict(final_text, tool_calls_made, iterations, run.status)
 
 
-# ── Output extractors
+#  Output extractors
 def _extract_outputs(client: AgentsClient, run) -> tuple[str, list, int]:
     tool_calls_made = []
     iterations      = 0
