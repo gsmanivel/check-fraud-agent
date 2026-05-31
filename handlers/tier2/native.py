@@ -1,4 +1,9 @@
-import os, json, time, logging
+import json
+import logging
+import os
+import time
+
+from azure.storage.blob import BlobServiceClient
 from openai import AzureOpenAI
 
 from handlers.shared.cosmos import get_cosmos_container, get_customer
@@ -9,40 +14,179 @@ logger = logging.getLogger(__name__)
 MAX_ITERATIONS  = int(os.environ.get("AGENT_MAX_ITERATIONS", "6"))
 TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "30"))
 
+#  Tool definitions
+
 TOOLS = [
-    {"type": "function", "function": {"name": "customer_lookup",      "description": "Look up full customer profile.",                                          "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}},                                                                                                                                                                  "required": ["account_number"]}}},
-    {"type": "function", "function": {"name": "velocity_check",       "description": "Check transaction frequency and totals for structuring detection.",      "parameters": {"type": "object", "properties": {"account_number": {"type": "string"}, "days_back": {"type": "integer", "default": 30}},                                                                                                            "required": ["account_number"]}}},
-    {"type": "function", "function": {"name": "signature_check",      "description": "Validate check signature.",                                              "parameters": {"type": "object", "properties": {"check_id": {"type": "string"}, "account_number": {"type": "string"}},                                                                                                                            "required": ["check_id", "account_number"]}}},
-    {"type": "function", "function": {"name": "fraud_pattern_search", "description": "Search fraud pattern knowledge base.",                                   "parameters": {"type": "object", "properties": {"indicators": {"type": "array", "items": {"type": "string"}}, "account_number": {"type": "string"}},                                                                                              "required": ["indicators"]}}},
-    {"type": "function", "function": {"name": "payee_verify",         "description": "Verify if payee is known or suspicious.",                                "parameters": {"type": "object", "properties": {"payee_name": {"type": "string"}, "amount": {"type": "number"}},                                                                                                                                  "required": ["payee_name"]}}},
-    {"type": "function", "function": {"name": "escalate_to_human",    "description": "Escalate to human analyst. Use only after exhausting other tools.",      "parameters": {"type": "object", "properties": {"reason": {"type": "string"}, "suspected_pattern": {"type": "string", "enum": ["structuring", "altered_check", "synthetic_identity", "unknown"]}, "risk_score": {"type": "integer"}}, "required": ["reason", "suspected_pattern", "risk_score"]}}},
+    {
+        "type": "function",
+        "function": {
+            "name": "customer_lookup",
+            "description": "Look up full customer profile.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_number": {"type": "string"},
+                },
+                "required": ["account_number"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "velocity_check",
+            "description": "Check transaction frequency and totals for structuring detection.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "account_number": {"type": "string"},
+                    "days_back":      {"type": "integer", "default": 30},
+                },
+                "required": ["account_number"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "signature_check",
+            "description": "Validate check signature.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "check_id":       {"type": "string"},
+                    "account_number": {"type": "string"},
+                },
+                "required": ["check_id", "account_number"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fraud_pattern_search",
+            "description": "Search fraud pattern knowledge base.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "indicators":     {"type": "array", "items": {"type": "string"}},
+                    "account_number": {"type": "string"},
+                },
+                "required": ["indicators"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "payee_verify",
+            "description": "Verify if payee is known or suspicious.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "payee_name": {"type": "string"},
+                    "amount":     {"type": "number"},
+                },
+                "required": ["payee_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "escalate_to_human",
+            "description": "Escalate to human analyst. Use only after exhausting other tools.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string"},
+                    "suspected_pattern": {
+                        "type": "string",
+                        "enum": [
+                            "structuring",
+                            "altered_check",
+                            "synthetic_identity",
+                            "POSSIBLE_altered_check",
+                            "POSSIBLE_structuring",
+                            "POSSIBLE_synthetic_identity",
+                            "POSSIBLE_money_mule",
+                            "unknown",
+                        ],
+                    },
+                    "risk_score": {"type": "integer"},
+                },
+                "required": ["reason", "suspected_pattern", "risk_score"],
+            },
+        },
+    },
 ]
 
-SYSTEM_PROMPT = """You are an expert check fraud detection agent reviewing escalated checks.
+# ── Default system prompt (fallback if blob read fails)
+
+DEFAULT_SYSTEM_PROMPT = """You are an expert check fraud detection agent reviewing escalated checks.
 Tier 1 already auto-rejected clear fraud and auto-approved clean checks.
 You only see AMBIGUOUS cases that Tier 1 could not decide with confidence.
 
-Rules:
-- Start with customer_lookup
-- Use velocity_check for amounts near $10,000
-- Use fraud_pattern_search once you have indicators
-- Maximum 6 tool calls total
-- Only use escalate_to_human after using at least 3 other tools
+TOOL USAGE — only call tools when needed:
+- Always start with customer_lookup — this is mandatory.
+- Call velocity_check only if amount is above $5,000 or customer_lookup shows any flags.
+- Call signature_check only if signature_present=False in extracted_fields.
+- Call payee_verify only if payee is unknown or suspicious-sounding.
+- Call fraud_pattern_search only after you have at least 2 indicators to search on.
+- Call escalate_to_human only when you cannot confidently approve or reject.
+- Stop as soon as you have enough evidence. Do not call tools just to be thorough.
+
+EARLY EXIT CONDITIONS — stop immediately when:
+- customer_lookup returns synthetic_identity_risk=True AND kyc_verified=False → reject
+- customer_lookup returns account_status=closed or frozen → reject
+- All signals benign after customer_lookup + one confirming tool → approve
 
 DECISION GUIDELINES:
-- approve: All signals are benign after full investigation.
-- reject: CONFIRMED fraud from MULTIPLE corroborating signals.
-- escalate: Any ambiguity remains. When uncertain, always escalate.
+- approve: All signals benign after investigation. Customer clean, no velocity issues, payee known, no fraud patterns.
+- reject: MULTIPLE corroborating confirmed signals. suspicious_payee + structuring_risk + velocity anomaly = reject. Never reject on a single signal alone.
+- escalate: Any genuine ambiguity remains after investigation. Single weak signal without corroboration always escalates.
 
 PATTERN IDENTIFICATION — always assign a pattern, never use unknown:
-- missing_signature + low_ocr → POSSIBLE_altered_check
-- amount_mismatch + suspicious_payee → POSSIBLE_money_mule
-- amount near $10,000 + high velocity → POSSIBLE_structuring
-- new_account + large_amount + kyc_fail → POSSIBLE_synthetic_identity
-- any unrecognized combination → POSSIBLE_altered_check (default fallback)
+- missing_signature + low_ocr                    → POSSIBLE_altered_check
+- amount_mismatch + suspicious_payee             → POSSIBLE_money_mule
+- amount near $10,000 + high velocity            → POSSIBLE_structuring
+- new_account + large_amount + kyc_fail          → POSSIBLE_synthetic_identity
+- suspicious_payee + structuring_risk            → structuring
+- bearer or anonymous keywords in payee          → altered_check
+- any unrecognized combination                   → POSSIBLE_altered_check
 
 Always end with a JSON decision:
-{"decision":"approve"|"reject"|"escalate","risk_score":0-100,"fraud_pattern":"structuring"|"altered_check"|"synthetic_identity"|"POSSIBLE_altered_check"|"POSSIBLE_structuring"|"POSSIBLE_synthetic_identity"|"POSSIBLE_money_mule","fraud_indicators":[],"reasoning":"explanation"}"""
+{
+  "decision": "approve" | "reject" | "escalate",
+  "risk_score": 0-100,
+  "fraud_pattern": "structuring" | "altered_check" | "synthetic_identity" | "POSSIBLE_altered_check" | "POSSIBLE_structuring" | "POSSIBLE_synthetic_identity" | "POSSIBLE_money_mule",
+  "fraud_indicators": [],
+  "reasoning": "explanation"
+}"""
+
+
+# ── System prompt loader
+
+def get_system_prompt() -> str:
+    """Load system prompt from Blob Storage. Falls back to DEFAULT_SYSTEM_PROMPT."""
+    try:
+        client = BlobServiceClient.from_connection_string(
+            os.environ["BLOB_CONNECTION_STRING"]
+        )
+        blob = client.get_blob_client(container="config", blob="tier2_prompt.txt")
+        prompt = blob.download_blob().readall().decode("utf-8").strip()
+        if prompt:
+            logger.info("Loaded system prompt from blob storage")
+            return prompt
+    except Exception as e:
+        logger.warning(f"Failed to load prompt from blob, using default: {e}")
+    return DEFAULT_SYSTEM_PROMPT
+
+
+SYSTEM_PROMPT = get_system_prompt()
+
+
+# ── Main agent entry point 
 
 def run_agent_native(payload: dict, start_time: float) -> dict:
     client = AzureOpenAI(
@@ -50,18 +194,27 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
         api_key=os.environ["AZURE_OPENAI_KEY"],
         api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
     )
+
     ef = payload.get("extracted_fields", {})
+
     user_message = (
         f"Analyze this check for fraud:\n"
-        f"CHECK: id={payload.get('id')} amount=${payload.get('amount', 0):,.2f} "
-        f"payee={payload.get('payee_name')} account={payload.get('account_number')} "
-        f"bank={payload.get('bank_name')} submitted={payload.get('submission_date')}\n"
-        f"EXTRACTION: micr_valid={ef.get('micr_valid')} amount_mismatch={ef.get('amount_mismatch')} "
-        f"signature={ef.get('signature_present')} ocr_confidence={ef.get('raw_ocr_confidence', 1.0):.0%}\n"
+        f"CHECK: id={payload.get('id')} "
+        f"amount=${payload.get('amount', 0):,.2f} "
+        f"payee={payload.get('payee_name')} "
+        f"account={payload.get('account_number')} "
+        f"bank={payload.get('bank_name')} "
+        f"submitted={payload.get('submission_date')}\n"
+        f"EXTRACTION: "
+        f"micr_valid={ef.get('micr_valid')} "
+        f"amount_mismatch={ef.get('amount_mismatch')} "
+        f"signature={ef.get('signature_present')} "
+        f"ocr_confidence={ef.get('raw_ocr_confidence', 1.0):.0%}\n"
         f"TIER1: risk_score={payload.get('tier1_risk_score', 'N/A')} "
         f"indicators={', '.join(payload.get('tier1_indicators', [])) or 'None'}\n"
         f"Investigate and provide your final JSON decision."
     )
+
     messages        = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_message}]
     tool_calls_made = []
     iterations      = 0
@@ -71,100 +224,196 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
         if time.time() - start_time > TIMEOUT_SECONDS:
             logger.warning(f"Native agent timeout for {payload.get('id')} after {iterations} iterations")
             break
+
         iterations += 1
+
         response = client.chat.completions.create(
             model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
-            messages=messages, tools=TOOLS, tool_choice="auto",
-            temperature=0.1, max_tokens=2000
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+            temperature=0.1,
+            max_tokens=2000,
         )
+
         message = response.choices[0].message
+
+        # No tool calls — model returned final decision
         if not message.tool_calls:
             result = _parse_decision(message.content, tool_calls_made, iterations)
             result["engine"] = "native"
             return result
-        messages.append({"role": "assistant", "content": message.content, "tool_calls": [
-            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-            for tc in message.tool_calls
-        ]})
+
+        # Append assistant message with tool calls
+        messages.append({
+            "role": "assistant",
+            "content": message.content,
+            "tool_calls": [
+                {
+                    "id":       tc.id,
+                    "type":     "function",
+                    "function": {
+                        "name":      tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in message.tool_calls
+            ],
+        })
+
+        # Execute each tool call and append results
         for tc in message.tool_calls:
-            name   = tc.function.name
-            args   = json.loads(tc.function.arguments)
+            name = tc.function.name
+            args = json.loads(tc.function.arguments)
+
             tool_calls_made.append({"tool": name, "args": args})
             result = _exec_tool(name, args, payload)
+
             if name == "escalate_to_human":
                 escalation = args
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
 
+            messages.append({
+                "role":         "tool",
+                "tool_call_id": tc.id,
+                "content":      json.dumps(result),
+            })
+
+    # Agent reached iteration limit or timed out
     if escalation:
         return {
-            "decision": "escalate", "risk_score": escalation.get("risk_score", 60),
-            "fraud_pattern": escalation.get("suspected_pattern", "unknown"),
-            "fraud_indicators": [], "reasoning": escalation.get("reason", ""),
-            "tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "native"
+            "decision":        "escalate",
+            "risk_score":      escalation.get("risk_score", 60),
+            "fraud_pattern":   escalation.get("suspected_pattern", "unknown"),
+            "fraud_indicators": [],
+            "reasoning":       escalation.get("reason", ""),
+            "tool_calls_made": tool_calls_made,
+            "iterations":      iterations,
+            "engine":          "native",
         }
+
     return {
-        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
-        "fraud_indicators": ["max_iterations_reached"], "reasoning": "Agent reached iteration limit",
-        "tool_calls_made": tool_calls_made, "iterations": iterations, "engine": "native"
+        "decision":        "escalate",
+        "risk_score":      50,
+        "fraud_pattern":   "unknown",
+        "fraud_indicators": ["max_iterations_reached"],
+        "reasoning":       "Agent reached iteration limit",
+        "tool_calls_made": tool_calls_made,
+        "iterations":      iterations,
+        "engine":          "native",
     }
 
+
+# ── Tool executor 
 
 def _exec_tool(name: str, args: dict, payload: dict) -> dict:
     try:
         if name == "customer_lookup":
-            customer = get_customer(args["account_number"])
-            if not customer:
-                return {"found": False}
-            return {
-                "found": True, "customer_name": customer.get("customer_name"),
-                "account_status": customer.get("account_status"), "kyc_verified": customer.get("kyc_verified"),
-                "synthetic_identity_risk": customer.get("synthetic_identity_risk"),
-                "avg_monthly_balance": customer.get("avg_monthly_balance"),
-                "linked_accounts": customer.get("linked_accounts", []), "flags": customer.get("flags", [])
-            }
+            return _tool_customer_lookup(args)
+
         elif name == "velocity_check":
-            data = query_velocity(args["account_number"], days_back=args.get("days_back", 30))
-            return {"total_checks": data["count"], "total_amount": data["total"], "near_ctr_threshold_count": data["near_ctr"], "structuring_risk": data["near_ctr"] >= 2, "recent_transactions": data["recent_txns"][:10]}
+            return _tool_velocity_check(args)
+
         elif name == "signature_check":
-            ef  = payload.get("extracted_fields", {})
-            sig = ef.get("signature_present", False)
-            return {"signature_present": sig, "signature_match": sig, "confidence": 0.85 if sig else 0.0}
+            return _tool_signature_check(args, payload)
+
         elif name == "fraud_pattern_search":
-            container = get_cosmos_container("fraud_cases")
-            all_cases = list(container.read_all_items())
-            indicator_set = set(i.lower() for i in args.get("indicators", []))
-            matches       = []
-            for case in all_cases:
-                case_signals = set(s.lower() for s in case.get("agent_signals", []))
-                overlap      = case_signals.intersection(indicator_set)
-                if overlap:
-                    matches.append({
-                        "pattern": case.get("pattern"), "description": case.get("description"),
-                        "matching_signals": list(overlap),
-                        "match_confidence": len(overlap) / max(len(indicator_set), 1)
-                    })
-            matches.sort(key=lambda x: x["match_confidence"], reverse=True)
-            return {"matches_found": len(matches), "top_matches": matches[:3]}
+            return _tool_fraud_pattern_search(args)
+
         elif name == "payee_verify":
-            payee = args.get("payee_name", "").lower()
-            suspicious_keywords = ["cash", "bearer", "atm", "wire", "anonymous"]
-            is_suspicious = any(k in payee for k in suspicious_keywords)
-            return {
-                "payee_name": args.get("payee_name"), "suspicious": is_suspicious,
-                "risk_assessment": "high_risk" if is_suspicious else "low_risk"
-            }
+            return _tool_payee_verify(args)
+
         elif name == "escalate_to_human":
-            return {
-                "status": "escalation_queued",
-                "reason": args.get("reason"),
-                "suspected_pattern": args.get("suspected_pattern"),
-                "risk_score": args.get("risk_score")
-            }
+            return _tool_escalate_to_human(args)
+
     except Exception as e:
         logger.error(f"Tool {name} failed: {e}", exc_info=True)
         return {"error": str(e)}
+
     return {"error": "unknown_tool"}
 
+
+def _tool_customer_lookup(args: dict) -> dict:
+    customer = get_customer(args["account_number"])
+    if not customer:
+        return {"found": False}
+    return {
+        "found":                  True,
+        "customer_name":          customer.get("customer_name"),
+        "account_status":         customer.get("account_status"),
+        "kyc_verified":           customer.get("kyc_verified"),
+        "synthetic_identity_risk": customer.get("synthetic_identity_risk"),
+        "avg_monthly_balance":    customer.get("avg_monthly_balance"),
+        "linked_accounts":        customer.get("linked_accounts", []),
+        "flags":                  customer.get("flags", []),
+    }
+
+
+def _tool_velocity_check(args: dict) -> dict:
+    data = query_velocity(args["account_number"], days_back=args.get("days_back", 30))
+    return {
+        "total_checks":             data["count"],
+        "total_amount":             data["total"],
+        "near_ctr_threshold_count": data["near_ctr"],
+        "structuring_risk":         data["near_ctr"] >= 2,
+        "recent_transactions":      data["recent_txns"][:10],
+    }
+
+
+def _tool_signature_check(args: dict, payload: dict) -> dict:
+    ef  = payload.get("extracted_fields", {})
+    sig = ef.get("signature_present", False)
+    return {
+        "signature_present": sig,
+        "signature_match":   sig,
+        "confidence":        0.85 if sig else 0.0,
+    }
+
+
+def _tool_fraud_pattern_search(args: dict) -> dict:
+    container     = get_cosmos_container("fraud_cases")
+    all_cases     = list(container.read_all_items())
+    indicator_set = set(i.lower() for i in args.get("indicators", []))
+    matches       = []
+
+    for case in all_cases:
+        case_signals = set(s.lower() for s in case.get("agent_signals", []))
+        overlap      = case_signals.intersection(indicator_set)
+        if overlap:
+            matches.append({
+                "pattern":          case.get("pattern"),
+                "description":      case.get("description"),
+                "matching_signals": list(overlap),
+                "match_confidence": len(overlap) / max(len(indicator_set), 1),
+            })
+
+    matches.sort(key=lambda x: x["match_confidence"], reverse=True)
+    return {
+        "matches_found": len(matches),
+        "top_matches":   matches[:3],
+    }
+
+
+def _tool_payee_verify(args: dict) -> dict:
+    payee               = args.get("payee_name", "").lower()
+    suspicious_keywords = ["cash", "bearer", "atm", "wire", "anonymous"]
+    is_suspicious       = any(k in payee for k in suspicious_keywords)
+    return {
+        "payee_name":      args.get("payee_name"),
+        "suspicious":      is_suspicious,
+        "risk_assessment": "high_risk" if is_suspicious else "low_risk",
+    }
+
+
+def _tool_escalate_to_human(args: dict) -> dict:
+    return {
+        "status":            "escalation_queued",
+        "reason":            args.get("reason"),
+        "suspected_pattern": args.get("suspected_pattern"),
+        "risk_score":        args.get("risk_score"),
+    }
+
+
+# ── Decision parser
 
 def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dict:
     try:
@@ -177,8 +426,13 @@ def _parse_decision(content: str, tool_calls_made: list, iterations: int) -> dic
             return data
     except Exception as e:
         logger.warning(f"Could not parse decision JSON: {e}")
+
     return {
-        "decision": "escalate", "risk_score": 50, "fraud_pattern": "unknown",
-        "fraud_indicators": ["parse_error"], "reasoning": content or "No content",
-        "tool_calls_made": tool_calls_made, "iterations": iterations
+        "decision":        "escalate",
+        "risk_score":      50,
+        "fraud_pattern":   "unknown",
+        "fraud_indicators": ["parse_error"],
+        "reasoning":       content or "No content",
+        "tool_calls_made": tool_calls_made,
+        "iterations":      iterations,
     }
