@@ -15,6 +15,13 @@ from datetime import datetime, timezone
 
 ENGINE = 1
 
+ENGINE_MAP = {
+    1: "native",
+    2: "sk",
+    3: "azure_agent",
+}
+TIER2_ENGINE = ENGINE_MAP[ENGINE]
+
 # Load local.settings.json into env
 _settings_path = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -33,15 +40,6 @@ cosmos = CosmosClient(
     credential=os.environ["COSMOS_KEY"],
 )
 db = cosmos.get_database_client(os.environ["COSMOS_DATABASE"])
-
-
-ENGINE_MAP = {
-    1: "native",
-    2: "sk",
-    3: "azure_agent",
-}
-TIER2_ENGINE = ENGINE_MAP[ENGINE]
-
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

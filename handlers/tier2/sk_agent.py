@@ -181,8 +181,11 @@ async def _investigation_step(payload: dict, context: dict, start_time: float) -
     ))
     kernel.add_plugin(FraudInvestigationPlugin(payload), plugin_name="fraud")
 
+    # response_format (structured output) cannot be used together with tool calling
+    # in a single Azure OpenAI request — the API returns 400. The system prompt
+    # instructs the model to emit JSON in its final text message; _verdict_step
+    # parses it from there.
     settings = OpenAIChatPromptExecutionSettings(
-        response_format=FraudDecisionLLMOutput,
         function_choice_behavior=FunctionChoiceBehavior.Auto(),
         temperature=0.1,
         max_tokens=2000,

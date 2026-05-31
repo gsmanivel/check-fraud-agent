@@ -48,7 +48,7 @@ def run_agent_native(payload: dict, start_time: float) -> dict:
     client = AzureOpenAI(
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         api_key=os.environ["AZURE_OPENAI_KEY"],
-        api_version="2024-08-01-preview"
+        api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-10-21"),
     )
     ef = payload.get("extracted_fields", {})
     user_message = (

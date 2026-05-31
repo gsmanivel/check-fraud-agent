@@ -26,13 +26,13 @@ import time
 from typing import Optional
 
 from azure.ai.agents import AgentsClient
-from azure.ai.agents.models import FunctionTool, ToolSet
+from azure.ai.agents.models import AgentsResponseFormat, FunctionTool, ToolSet
 from azure.identity import DefaultAzureCredential
 from pydantic import ValidationError
 
 from handlers.shared.content_safety import check_prompt_safety
 from handlers.shared.cosmos import get_cosmos_container, get_customer
-from handlers.shared.models import FraudDecision, FraudDecisionLLMOutput
+from handlers.shared.models import FraudDecision
 from handlers.shared.velocity import query_velocity
 
 logger = logging.getLogger(__name__)
@@ -78,16 +78,10 @@ def _get_client() -> AgentsClient:
     return _client
 
 
-def _response_format() -> dict:
-    schema = FraudDecisionLLMOutput.model_json_schema()
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "FraudDecisionLLMOutput",
-            "schema": schema,
-            "strict": True,
-        },
-    }
+def _response_format() -> AgentsResponseFormat:
+    # json_object mode: model must output valid JSON — no schema to validate,
+    # so no anyOf/strict-mode incompatibilities. _verdict() parses the JSON.
+    return AgentsResponseFormat(type="json_object")
 
 
 def _build_toolset() -> ToolSet:
