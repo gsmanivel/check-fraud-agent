@@ -30,4 +30,3 @@ tests/eval/reports/
 # OS
 .DS_Store
 Thumbs.db
-.python_packages.python_packages/

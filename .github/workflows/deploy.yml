@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-# Serialize deploys against the same Function App.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
@@ -61,13 +60,7 @@ jobs:
       - name: Install Python dependencies into package
         run: |
           pip install --upgrade pip
-          pip install \
-            --platform manylinux2014_x86_64 \
-            --target=".python_packages/lib/site-packages" \
-            --implementation cp \
-            --python-version 3.11 \
-            --only-binary=:all: \
-            -r requirements.txt
+          pip install --target=".python_packages/lib/site-packages" -r requirements.txt
 
       - name: Create deployment package
         run: zip -rq deploy.zip host.json requirements.txt function_app.py handlers/ dashboard.html .python_packages
