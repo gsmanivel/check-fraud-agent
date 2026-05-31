@@ -3,7 +3,6 @@ Azure AI Foundry Agent Service implementation of the Tier-2 fraud investigation 
 
 Engines available in Tier 2:
   - native       : hand-rolled ReAct on chat.completions
-  - sk           : Semantic Kernel ChatCompletionAgent
   - azure_agent  : this file — managed Azure AI Foundry Agent Service runtime
 
 How it works:

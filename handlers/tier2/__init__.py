@@ -23,10 +23,7 @@ async def tier2_agent(msg: func.ServiceBusMessage):
     logger.info(f"Tier 2 [{engine}] processing: {check_id}")
 
     try:
-        if engine == "sk":
-            from handlers.tier2.sk_agent import run_agent_sk
-            raw_result = await run_agent_sk(payload, start)
-        elif engine == "azure_agent":
+        if engine == "azure_agent":
             from handlers.tier2.azure_agent import run_agent_foundry
             raw_result = await run_agent_foundry(payload, start)
         else:

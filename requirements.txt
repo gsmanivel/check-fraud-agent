@@ -11,4 +11,3 @@ azure-keyvault-secrets==4.9.0
 openai==2.36.0
 pydantic==2.9.2
 pydantic-settings==2.5.2
-semantic-kernel==1.40.0

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 Decision      = Literal["approve", "reject", "escalate"]
 FraudPattern  = Literal["structuring", "altered_check", "synthetic_identity", "unknown"]
-Engine        = Literal["native", "semantic_kernel", "azure_agent"]
+Engine        = Literal["native", "azure_agent"]
 
 
 class ToolCall(BaseModel):

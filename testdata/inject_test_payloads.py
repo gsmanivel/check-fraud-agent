@@ -17,8 +17,7 @@ ENGINE = 3
 
 ENGINE_MAP = {
     1: "native",
-    2: "sk",
-    3: "azure_agent",
+    2: "azure_agent",
 }
 TIER2_ENGINE = ENGINE_MAP[ENGINE]
 
