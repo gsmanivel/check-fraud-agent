@@ -19,7 +19,7 @@ async def tier2_agent(msg: func.ServiceBusMessage):
     start    = time.time()
     payload  = json.loads(msg.get_body().decode("utf-8"))
     check_id = payload.get("id")
-    engine   = os.environ.get("TIER2_ENGINE", "native")
+    engine = payload.get("tier2_engine") or os.environ.get("TIER2_ENGINE", "native")
     logger.info(f"Tier 2 [{engine}] processing: {check_id}")
 
     try:

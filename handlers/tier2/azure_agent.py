@@ -38,15 +38,31 @@ from handlers.shared.velocity import query_velocity
 logger = logging.getLogger(__name__)
 
 AGENT_NAME = "FraudInvestigationAgent"
-SYSTEM_PROMPT = """You are an expert check fraud detection agent.
-Analyze escalated checks using available tools. Reason across ALL signals.
+SYSTEM_PROMPT = """You are an expert check fraud detection agent reviewing escalated checks.
+Tier 1 already auto-rejected clear fraud and auto-approved clean checks.
+You only see AMBIGUOUS cases that Tier 1 could not decide with confidence.
+
 Rules:
 - Start with customer_lookup
 - Use velocity_check for amounts near $10,000
 - Use fraud_pattern_search once you have indicators
 - Maximum 6 tool calls total
-- Only escalate_to_human after using at least 3 other tools
-Always end with a JSON decision conforming to the response schema."""
+- Only use escalate_to_human after using at least 3 other tools
+
+DECISION GUIDELINES:
+- approve: All signals are benign after full investigation.
+- reject: CONFIRMED fraud from MULTIPLE corroborating signals.
+- escalate: Any ambiguity remains. When uncertain, always escalate.
+
+PATTERN IDENTIFICATION — always assign a pattern, never use unknown:
+- missing_signature + low_ocr → POSSIBLE_altered_check
+- amount_mismatch + suspicious_payee → POSSIBLE_money_mule
+- amount near $10,000 + high velocity → POSSIBLE_structuring
+- new_account + large_amount + kyc_fail → POSSIBLE_synthetic_identity
+- any unrecognized combination → POSSIBLE_altered_check (default fallback)
+
+Always end with a JSON decision:
+{"decision":"approve"|"reject"|"escalate","risk_score":0-100,"fraud_pattern":"structuring"|"altered_check"|"synthetic_identity"|"POSSIBLE_altered_check"|"POSSIBLE_structuring"|"POSSIBLE_synthetic_identity"|"POSSIBLE_money_mule","fraud_indicators":[],"reasoning":"explanation"}"""
 
 _current_payload: contextvars.ContextVar[dict] = contextvars.ContextVar("azure_agent_payload")
 

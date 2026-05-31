@@ -13,6 +13,8 @@ import sys
 import uuid
 from datetime import datetime, timezone
 
+ENGINE = 1
+
 # Load local.settings.json into env
 _settings_path = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -33,7 +35,13 @@ cosmos = CosmosClient(
 db = cosmos.get_database_client(os.environ["COSMOS_DATABASE"])
 
 
-# ── helpers ────────────────────────────────────────────────────────────────
+ENGINE_MAP = {
+    1: "native",
+    2: "sk",
+    3: "azure_agent",
+}
+TIER2_ENGINE = ENGINE_MAP[ENGINE]
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -55,6 +63,7 @@ def build_payload(scenario: dict) -> dict:
         "bank_name":       scenario["bank_name"],
         "check_image_url": f"https://test/{check_id}.jpg",
         "blob_path":       f"test/{check_id}.jpg",
+        "tier2_engine": TIER2_ENGINE,
         "extracted_fields": {
             "amount_numeric":      scenario["amount"],
             "amount_words":        scenario.get("amount_words", ""),

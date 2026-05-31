@@ -84,7 +84,7 @@
     "amount": 3500.00,
     "payee_name": "Miller Supplies Inc",
     "bank_name": "US BANK",
-    "customer_name": "David Mitchell",
+  "customer_name": "David Mitchell",
     "check_number": "2200",
     "micr_valid": true,
     "amount_mismatch": false,
