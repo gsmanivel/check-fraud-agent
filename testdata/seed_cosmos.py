@@ -3,7 +3,7 @@ import sys
 import os
 from pathlib import Path
 
-repo_root = Path(__file__).resolve().parents[2]
+repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root))
 from azure.cosmos import CosmosClient
 
@@ -36,7 +36,7 @@ def reset_container(name: str, partition_key_path: str):
 
 
 # Load synthetic data
-data = json.loads((repo_root / "testdata" / "scripts" / "synthetic_data_full.json").read_text())
+data = json.loads((repo_root / "testdata"  / "synthetic_data_full.json").read_text())
 
 print("Resetting containers...")
 customers_c   = reset_container("customers",   "/id")

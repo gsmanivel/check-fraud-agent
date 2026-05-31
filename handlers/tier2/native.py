@@ -18,17 +18,24 @@ TOOLS = [
     {"type": "function", "function": {"name": "escalate_to_human",    "description": "Escalate to human analyst. Use only after exhausting other tools.",      "parameters": {"type": "object", "properties": {"reason": {"type": "string"}, "suspected_pattern": {"type": "string", "enum": ["structuring", "altered_check", "synthetic_identity", "unknown"]}, "risk_score": {"type": "integer"}}, "required": ["reason", "suspected_pattern", "risk_score"]}}},
 ]
 
-SYSTEM_PROMPT = """You are an expert check fraud detection agent.
-Analyze escalated checks using available tools. Reason across ALL signals.
+SYSTEM_PROMPT = """You are an expert check fraud detection agent reviewing escalated checks.
+Tier 1 already auto-rejected clear fraud and auto-approved clean checks.
+You only see AMBIGUOUS cases that Tier 1 could not decide with confidence.
+
 Rules:
 - Start with customer_lookup
 - Use velocity_check for amounts near $10,000
 - Use fraud_pattern_search once you have indicators
 - Maximum 6 tool calls total
-- Only escalate_to_human after using at least 3 other tools
+- Only use escalate_to_human after using at least 3 other tools
+
+DECISION GUIDELINES:
+- approve: All signals are benign after full investigation. Customer is clean, no velocity issues, payee is known, no fraud patterns matched.
+- reject: You have CONFIRMED, HIGH-CONFIDENCE fraud evidence from MULTIPLE corroborating signals. A single weak signal is never enough to reject.
+- escalate: Any ambiguity remains after investigation. Missing signature, low OCR confidence, unverified payee, inconclusive pattern match, or any single signal without corroboration — all warrant human review. When uncertain, always escalate. Human analysts exist precisely for these cases.
+
 Always end with a JSON decision:
 {"decision":"approve"|"reject"|"escalate","risk_score":0-100,"fraud_pattern":"structuring"|"altered_check"|"synthetic_identity"|"unknown"|null,"fraud_indicators":[],"reasoning":"explanation"}"""
-
 
 def run_agent_native(payload: dict, start_time: float) -> dict:
     client = AzureOpenAI(
