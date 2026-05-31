@@ -7,7 +7,7 @@
       "version": "18"
     }
   },
-  "postCreateCommand": "pip install -r requirements.txt && npm install -g azure-functions-core-tools@4 --unsafe-perm true",
+  "postCreateCommand": "python -m venv .venv && .venv/bin/pip install -r requirements.txt && npm install -g azure-functions-core-tools@4 --unsafe-perm true",
   "customizations": {
     "vscode": {
       "extensions": [
