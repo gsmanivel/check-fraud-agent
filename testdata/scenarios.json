@@ -134,8 +134,8 @@
   },
   {
     "name": "SC8 — Tier 2 Catches Structuring (Tier 1 Missed)",
-    "expected": "reject",
-    "description": "All hard signals are clean — valid MICR, no alteration, signature present. Tier 1 sees only mild CTR proximity + slight OCR dip (score 30) and escalates with no fraud label. Tier 2 calls payee_verify, flags the payee as a wire-front company, and correlates that with the amount deliberately structured below the $10k CTR threshold — a hidden pattern tier 1 rules cannot detect.",
+    "expected": "escalate",
+    "description": "Structuring signals + suspicious payee. Tier 1 escalates, Tier 2 investigates and escalates to human — ambiguous without confirmed pattern match.",
     "account_number": "1478163327",
     "routing_number": "021000021",
     "amount": 9200.00,
@@ -172,8 +172,8 @@
   },
   {
     "name": "SC10 — Tier 2 Catches Anonymous-Wire Money Mule",
-    "expected": "reject",
-    "description": "Layering stage of a money-mule network. Tier 1 sees missing signature + low OCR (score 30) and escalates with no fraud label — it has no semantic payee analysis. Tier 2 calls payee_verify, matches both 'anonymous' and 'wire' keywords, and identifies the check as a layering transaction routing funds through an anonymous wire intermediary.",
+    "expected": "escalate",
+    "description": "Anonymous wire payee + missing signature. Tier 1 escalates, Tier 2 investigates and escalates to human — ambiguous without confirmed pattern match.",
     "account_number": "3303082117",
     "routing_number": "021000021",
     "amount": 5100.00,

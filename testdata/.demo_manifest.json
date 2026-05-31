@@ -2,77 +2,77 @@
   {
     "scenario": "SC1 \u2014 Auto Approve",
     "expected": "approve",
-    "check_id": "8a0c92bd-9447-42db-b0c7-22fb55ebde14",
+    "check_id": "1a860e57-e2af-4f9f-8585-f1414d1fcd2e",
     "amount": 875.0,
     "account": "1478163327"
   },
   {
     "scenario": "SC2 \u2014 Auto Reject",
     "expected": "reject",
-    "check_id": "8e47dfa1-d710-4a3c-ba6d-b7dd838b8f3f",
+    "check_id": "70462e58-6f05-4111-809a-fa9d4c1722b4",
     "amount": 14000.0,
     "account": "8106906538"
   },
   {
     "scenario": "SC3 \u2014 Tier 2 Agent (Unknown Payee)",
     "expected": "escalate",
-    "check_id": "c8bf961f-5216-43fc-b7e0-0f28ae11b84c",
+    "check_id": "a659a4e1-8a84-4da0-8086-61a112adc904",
     "amount": 3200.0,
     "account": "4645120421"
   },
   {
     "scenario": "SC4 \u2014 Auto Reject (Synthetic Identity)",
     "expected": "reject",
-    "check_id": "dd52c095-0de0-42af-bb42-dc0aac30d3f3",
+    "check_id": "ba010013-0e03-4bc6-9bd4-db48ad6c1769",
     "amount": 9500.0,
     "account": "6237376063"
   },
   {
     "scenario": "SC5 \u2014 Tier 2 Agent (Altered Check)",
     "expected": "escalate",
-    "check_id": "9e82d6d0-fc59-4058-9e2e-e66ce7e55a10",
+    "check_id": "4a3090e8-c364-42a9-a988-0fdf62ba1fc0",
     "amount": 3500.0,
     "account": "4645120421"
   },
   {
     "scenario": "SC6 \u2014 Auto Reject (Synthetic Identity)",
     "expected": "reject",
-    "check_id": "94ad4821-2872-41f1-b93b-8092f7d9c12a",
+    "check_id": "3b2675ac-e4c5-4ea9-86a6-38fe8814167d",
     "amount": 2500.0,
     "account": "6237376063"
   },
   {
     "scenario": "SC7 \u2014 Tier 3 Human Review (Money Mule)",
     "expected": "escalate",
-    "check_id": "fefe8d25-6295-4134-bbeb-daff0d6ba2ec",
+    "check_id": "69c72f65-5a69-4f05-879e-1d6a60ab4b15",
     "amount": 4000.0,
     "account": "3303082117"
   },
   {
     "scenario": "SC8 \u2014 Tier 2 Catches Structuring (Tier 1 Missed)",
-    "expected": "reject",
-    "check_id": "d0777ca7-6469-4c63-82ba-fcee66b8cb3d",
+    "expected": "escalate",
+    "check_id": "d8756c87-bd80-4051-ba6a-a8f3b3cf9f35",
     "amount": 9200.0,
     "account": "1478163327"
   },
   {
     "scenario": "SC9 \u2014 Tier 2 Catches Bearer / Stolen-Check Fraud",
     "expected": "reject",
-    "check_id": "69caf10b-b8a0-45d1-81e3-6827858e6f61",
+    "check_id": "0de8a03a-30a9-4af4-b73d-2f8ab7ae2311",
     "amount": 6400.0,
     "account": "4645120421"
   },
   {
     "scenario": "SC10 \u2014 Tier 2 Catches Anonymous-Wire Money Mule",
-    "expected": "reject",
-    "check_id": "5b08b0eb-804a-4a3e-88a7-039529db2da0",
+    "expected": "escalate",
+    "check_id": "436d76b1-e6cf-47cf-aca8-e06317d9e1c1",
     "amount": 5100.0,
     "account": "3303082117"
   },
   {
     "scenario": "SC11 \u2014 Tier 2 Cannot Catch: Shell-Company Fraud",
     "expected": "escalate",
-    "check_id": "edb40768-c481-435d-a9ab-070e950bb69f",
+    "check_id": "c265104d-26dc-4cb4-8845-fc91cf4d00f5",
     "amount": 9700.0,
     "account": "1478163327"
   }

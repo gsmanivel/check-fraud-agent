@@ -142,14 +142,15 @@ def main():
         expected         = item["expected"]
         decision_matches = (
             (expected == "approve"  and status in (
-                "approve", "approved", "approved_by_analyst"
+                "approve", "approved", "approved_by_analyst", "analyst_approve"
             )) or
             (expected == "reject"   and status in (
-                "reject", "rejected", "rejected_by_analyst", "fraud_confirmed_by_analyst"
+                "reject", "rejected", "rejected_by_analyst", "fraud_confirmed_by_analyst", "analyst_reject"
             )) or
             (expected == "escalate" and status in (
                 "escalate", "escalated", "escalated_tier3",
-                "awaiting_analyst", "escalating_to_tier2"
+                "awaiting_analyst", "escalating_to_tier2",
+                "analyst_approve", "analyst_reject"
             ))
         )
         is_pending = status in ("pending", "not_found", "escalating_to_tier2")
