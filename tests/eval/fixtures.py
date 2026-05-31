@@ -179,9 +179,6 @@ def install(monkeypatch=None):
         (handlers.tier2.native,      "get_customer",         _get_customer),
         (handlers.tier2.native,      "get_cosmos_container", _get_container),
         (handlers.tier2.native,      "query_velocity",       _query_velocity),
-        (handlers.tier2.sk_agent,    "get_customer",         _get_customer),
-        (handlers.tier2.sk_agent,    "get_cosmos_container", _get_container),
-        (handlers.tier2.sk_agent,    "query_velocity",       _query_velocity),
     ]
     for module, attr, value in targets:
         if monkeypatch:
