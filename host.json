@@ -5,9 +5,11 @@
     "version": "[4.*, 5.0.0)"
   },
   "functionTimeout": "00:10:00",
-  "serviceBus": {
-    "maxConcurrentCalls": 5,
-    "autoCompleteMessages": true
+  "extensions": {
+    "serviceBus": {
+      "maxConcurrentCalls": 2,
+      "autoCompleteMessages": true
+    }
   },
   "retry": {
     "strategy": "fixedDelay",

@@ -58,13 +58,16 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Install Python dependencies into .python_packages so they ship inside the
-      # zip. Avoids Oryx server-side build — Oryx has been hanging at "starting"
-      # for 40+ min with no logs. Local install is reliable and ~2 min in CI.
       - name: Install Python dependencies into package
         run: |
           pip install --upgrade pip
-          pip install --target=".python_packages/lib/site-packages" -r requirements.txt
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --target=".python_packages/lib/site-packages" \
+            --implementation cp \
+            --python-version 3.11 \
+            --only-binary=:all: \
+            -r requirements.txt
 
       - name: Create deployment package
         run: zip -rq deploy.zip host.json requirements.txt function_app.py handlers/ dashboard.html .python_packages

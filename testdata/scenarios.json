@@ -79,7 +79,7 @@
     "name": "SC5 — Tier 2 Agent (Altered Check)",
     "expected": "escalate",
     "description": "Alteration detected + low OCR. Score 26-74 — Tier 1 escalates to Tier 2 AI agent.",
-    "account_number": "1478163327",
+    "account_number": "4645120421",
     "routing_number": "021000021",
     "amount": 3500.00,
     "payee_name": "Miller Supplies Inc",
