@@ -160,7 +160,6 @@ def install(monkeypatch=None):
     import handlers.shared.cosmos
     import handlers.shared.velocity
     import handlers.tier2.native
-    import handlers.tier2.sk_agent
 
     def _get_customer(account_number: str):
         return CUSTOMERS.get(account_number)
